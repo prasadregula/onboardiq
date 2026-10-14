@@ -1,0 +1,66 @@
+{
+  "id": "G01_individual_clean_auto_approve",
+  "description": "US resident, consistent docs, low risk → straight-through approval",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G01",
+    "applicant_type": "individual",
+    "declared": {
+      "address": "1420 Wilshire Blvd Apt 7B, Los Angeles, CA 90017",
+      "country": "US",
+      "product": "checking",
+      "purpose": "payroll and household",
+      "expected_monthly_volume_usd": 6000,
+      "id_number": "D1234567"
+    },
+    "parties": [
+      {
+        "key": "a",
+        "role": "applicant",
+        "name": "Maria Elena Castillo",
+        "dob": "1988-02-11",
+        "country_of_residence": "US"
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_maria.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Maria Elena Castillo",
+            "dob": "1988-02-11",
+            "id_number": "D1234567",
+            "expiry": "2031-05-01",
+            "issuing_country": "US",
+            "address": "1420 Wilshire Blvd Apt 7B, Los Angeles, CA 90017"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "a"
+      },
+      {
+        "doc_type": "utility_bill",
+        "filename": "utility_bill_maria.pdf",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Maria E. Castillo",
+            "address": "1420 Wilshire Blvd Apt 7B, Los Angeles, CA 90017",
+            "statement_date": "2026-08-20"
+          },
+          "confidence": 0.93
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "auto_approve",
+    "risk_rating": "low",
+    "must_have": [],
+    "must_not_have": [
+      "SCREENING_SANCTIONS_MATCH",
+      "REQUIRED_DOC_MISSING"
+    ],
+    "gate": "GATE_STP"
+  }
+}

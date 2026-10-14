@@ -1,0 +1,67 @@
+{
+  "id": "G06_individual_possible_match_needs_review",
+  "description": "Name is close to an SDN entry but DOB differs → possible match, analyst dispositions",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G06",
+    "applicant_type": "individual",
+    "declared": {
+      "address": "2200 Colorado Blvd, Pasadena, CA 91107",
+      "country": "US",
+      "product": "checking",
+      "expected_monthly_volume_usd": 3500,
+      "id_number": "D6677889"
+    },
+    "parties": [
+      {
+        "key": "a",
+        "role": "applicant",
+        "name": "Carlos Enrique Valdez",
+        "dob": "1984-01-05",
+        "country_of_residence": "US"
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_carlos.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Carlos Enrique Valdez",
+            "dob": "1984-01-05",
+            "id_number": "D6677889",
+            "expiry": "2031-05-01",
+            "issuing_country": "US",
+            "address": "2200 Colorado Blvd, Pasadena, CA 91107"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "a"
+      },
+      {
+        "doc_type": "utility_bill",
+        "filename": "utility_bill_carlos.pdf",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Carlos E. Valdez",
+            "address": "2200 Colorado Blvd, Pasadena, CA 91107",
+            "statement_date": "2026-08-20"
+          },
+          "confidence": 0.93
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "needs_review",
+    "must_have": [
+      "SCREENING_SANCTIONS_POSSIBLE"
+    ],
+    "must_not_have": [
+      "SCREENING_SANCTIONS_MATCH"
+    ],
+    "review_priority": "possible_match",
+    "gate": "GATE_POSSIBLE_MATCH",
+    "risk_rating_max": "high"
+  }
+}

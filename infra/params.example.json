@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "env": {
+      "value": "dev"
+    },
+    "openAiEndpoint": {
+      "value": "https://<your-openai-resource>.openai.azure.com/"
+    },
+    "chatDeployment": {
+      "value": "gpt-4.1-mini"
+    },
+    "embeddingDeployment": {
+      "value": "text-embedding-3-small"
+    },
+    "deploySearch": {
+      "value": false
+    },
+    "deploySql": {
+      "value": true
+    },
+    "minReplicas": {
+      "value": 0
+    },
+    "maxReplicas": {
+      "value": 2
+    },
+    "corsOrigins": {
+      "value": "https://<your-static-web-app>.azurestaticapps.net,http://localhost:5180"
+    }
+  }
+}

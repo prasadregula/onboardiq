@@ -1,0 +1,127 @@
+{
+  "id": "G11_business_over_100_pct_escalate",
+  "description": "Declared ownership sums to 110% with a possible adverse-media hit → escalate",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G11",
+    "applicant_type": "business",
+    "declared": {
+      "entity_name": "Northwind Capital Partners LLC",
+      "address": "1 Market Plaza, San Francisco, CA 94105",
+      "country": "US",
+      "industry": "investment advisory",
+      "product": "business_checking",
+      "expected_monthly_volume_usd": 150000
+    },
+    "parties": [
+      {
+        "key": "e",
+        "role": "entity",
+        "name": "Northwind Capital Partners LLC",
+        "country_of_residence": "US"
+      },
+      {
+        "key": "o1",
+        "role": "beneficial_owner",
+        "name": "Owen Fitzgerald",
+        "dob": "1970-07-07",
+        "country_of_residence": "US",
+        "ownership_pct": 60,
+        "is_control_person": true
+      },
+      {
+        "key": "o2",
+        "role": "beneficial_owner",
+        "name": "Beatrice Moreau",
+        "dob": "1975-01-25",
+        "country_of_residence": "US",
+        "ownership_pct": 50
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "articles_of_incorporation",
+        "filename": "articles.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Northwind Capital Partners LLC",
+            "state": "CA",
+            "formed": "2019-04-02"
+          },
+          "confidence": 0.95
+        }
+      },
+      {
+        "doc_type": "ein_letter",
+        "filename": "ein.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Northwind Capital Partners LLC",
+            "ein": "**-***1234"
+          },
+          "confidence": 0.96
+        }
+      },
+      {
+        "doc_type": "ownership_declaration",
+        "filename": "ubo.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Northwind Capital Partners LLC",
+            "owners": [
+              {
+                "name": "Owen Fitzgerald",
+                "pct": 60
+              },
+              {
+                "name": "Beatrice Moreau",
+                "pct": 50
+              }
+            ]
+          },
+          "confidence": 0.94
+        }
+      },
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_owen.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Owen Fitzgerald",
+            "dob": "1970-07-07",
+            "id_number": "D6060606",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "o1"
+      },
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_beatrice.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Beatrice Moreau",
+            "dob": "1975-01-25",
+            "id_number": "D7070707",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "o2"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "escalate",
+    "must_have": [
+      "UBO_OVER_100",
+      "SCREENING_ADVERSE_MEDIA"
+    ],
+    "must_not_have": [],
+    "gate": "GATE_CRITICAL_DATA_WITH_SCREENING",
+    "risk_rating_max": "medium"
+  }
+}

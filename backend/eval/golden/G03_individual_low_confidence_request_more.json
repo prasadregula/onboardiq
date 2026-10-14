@@ -1,0 +1,63 @@
+{
+  "id": "G03_individual_low_confidence_request_more",
+  "description": "Blurry ID scan below the 0.80 confidence threshold → request clearer copy",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G03",
+    "applicant_type": "individual",
+    "declared": {
+      "address": "2200 Colorado Blvd, Pasadena, CA 91107",
+      "country": "US",
+      "product": "checking",
+      "expected_monthly_volume_usd": 3000,
+      "id_number": "P99887766"
+    },
+    "parties": [
+      {
+        "key": "a",
+        "role": "applicant",
+        "name": "Hannah Weiss",
+        "dob": "1995-06-14",
+        "country_of_residence": "US"
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "passport",
+        "filename": "passport_hannah.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Hannah Weiss",
+            "dob": "1995-06-14",
+            "id_number": "P99887766",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.61
+        },
+        "party_key": "a"
+      },
+      {
+        "doc_type": "utility_bill",
+        "filename": "utility_bill_hannah.pdf",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Hannah Weiss",
+            "address": "2200 Colorado Blvd, Pasadena, CA 91107",
+            "statement_date": "2026-08-20"
+          },
+          "confidence": 0.93
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "request_more",
+    "risk_rating": "low",
+    "must_have": [
+      "DOC_LOW_CONFIDENCE"
+    ],
+    "must_not_have": [],
+    "gate": "GATE_MISSING_INFO"
+  }
+}

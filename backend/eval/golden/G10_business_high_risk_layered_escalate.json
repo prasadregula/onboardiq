@@ -1,0 +1,180 @@
+{
+  "id": "G10_business_high_risk_layered_escalate",
+  "description": "Layered ownership through a Cyprus holding, crypto exchange, international wires → High risk, escalate",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G10",
+    "applicant_type": "business",
+    "declared": {
+      "entity_name": "Meridian Digital Assets LLC",
+      "address": "600 Congress Ave, Austin, TX 78701",
+      "country": "US",
+      "industry": "virtual asset exchange (crypto)",
+      "product": "business_checking",
+      "expected_monthly_volume_usd": 900000,
+      "international_wires": true,
+      "ownership_tree": [
+        {
+          "owner": "Helios Holdings Ltd",
+          "of": "Meridian Digital Assets LLC",
+          "pct": 70
+        },
+        {
+          "owner": "Nikolas Petrou",
+          "of": "Meridian Digital Assets LLC",
+          "pct": 30
+        },
+        {
+          "owner": "Andreas Georgiou",
+          "of": "Helios Holdings Ltd",
+          "pct": 50
+        },
+        {
+          "owner": "Elena Christou",
+          "of": "Helios Holdings Ltd",
+          "pct": 50
+        }
+      ]
+    },
+    "parties": [
+      {
+        "key": "e",
+        "role": "entity",
+        "name": "Meridian Digital Assets LLC",
+        "country_of_residence": "US"
+      },
+      {
+        "key": "o1",
+        "role": "beneficial_owner",
+        "name": "Nikolas Petrou",
+        "dob": "1980-05-05",
+        "country_of_residence": "US",
+        "ownership_pct": 30,
+        "is_control_person": true
+      },
+      {
+        "key": "o2",
+        "role": "beneficial_owner",
+        "name": "Andreas Georgiou",
+        "dob": "1969-11-11",
+        "country_of_residence": "CY",
+        "extra": {
+          "address": "12 Makarios Ave, Limassol 3025, Cyprus"
+        }
+      },
+      {
+        "key": "o3",
+        "role": "beneficial_owner",
+        "name": "Elena Christou",
+        "dob": "1974-02-02",
+        "country_of_residence": "CY",
+        "extra": {
+          "address": "8 Griva Digeni, Nicosia 1066, Cyprus"
+        }
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "articles_of_incorporation",
+        "filename": "articles.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Meridian Digital Assets LLC",
+            "state": "TX",
+            "formed": "2019-04-02"
+          },
+          "confidence": 0.95
+        }
+      },
+      {
+        "doc_type": "ein_letter",
+        "filename": "ein.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Meridian Digital Assets LLC",
+            "ein": "**-***1234"
+          },
+          "confidence": 0.96
+        }
+      },
+      {
+        "doc_type": "ownership_declaration",
+        "filename": "ubo.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Meridian Digital Assets LLC",
+            "owners": [
+              {
+                "name": "Helios Holdings Ltd",
+                "pct": 70
+              },
+              {
+                "name": "Nikolas Petrou",
+                "pct": 30
+              }
+            ]
+          },
+          "confidence": 0.94
+        }
+      },
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_nikolas.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Nikolas Petrou",
+            "dob": "1980-05-05",
+            "id_number": "D3030303",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "o1"
+      },
+      {
+        "doc_type": "passport",
+        "filename": "passport_andreas.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Andreas Georgiou",
+            "dob": "1969-11-11",
+            "id_number": "K4040404",
+            "expiry": "2031-05-01",
+            "issuing_country": "CY"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "o2"
+      },
+      {
+        "doc_type": "passport",
+        "filename": "passport_elena.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Elena Christou",
+            "dob": "1974-02-02",
+            "id_number": "K5050505",
+            "expiry": "2031-05-01",
+            "issuing_country": "CY"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "o3"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "escalate",
+    "gate": "GATE_HIGH_RISK",
+    "risk_rating": "high",
+    "must_have": [
+      "RISK_HIGH",
+      "OWNERSHIP_COMPLEX"
+    ],
+    "must_not_have": [
+      "UBO_COVERAGE_GAP"
+    ],
+    "review_priority": "high_risk"
+  }
+}

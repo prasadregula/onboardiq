@@ -1,0 +1,29 @@
+__pycache__/
+*.pyc
+.venv/
+backend/data/
+backend/.env
+backend/eval/reports/*
+!backend/eval/reports/.gitkeep
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.production
+infra/outputs.json
+
+# Windows download metadata
+*:Zone.Identifier
+
+# Environment-specific deployment values (keep out of the public repo)
+infra/.deploy.env
+infra/params.*.json
+!infra/params.example.json
+backend/.env.*
+!backend/.env.example
+frontend/.env.*
+!frontend/.env.example
+*.db
+*.db-shm
+*.db-wal
+.pytest_cache/
+.ruff_cache/

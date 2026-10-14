@@ -1,0 +1,63 @@
+{
+  "id": "G07_individual_dob_conflict_escalate",
+  "description": "DOB on the government ID conflicts with declared DOB → possible identity fraud, escalate (not a customer request)",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G07",
+    "applicant_type": "individual",
+    "declared": {
+      "address": "1420 Wilshire Blvd Apt 7B, Los Angeles, CA 90017",
+      "country": "US",
+      "product": "checking",
+      "expected_monthly_volume_usd": 2500,
+      "id_number": "D4455667"
+    },
+    "parties": [
+      {
+        "key": "a",
+        "role": "applicant",
+        "name": "Priya Raman",
+        "dob": "1990-12-01",
+        "country_of_residence": "US"
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_priya.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Priya Raman",
+            "dob": "1992-12-01",
+            "id_number": "D4455667",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "a"
+      },
+      {
+        "doc_type": "utility_bill",
+        "filename": "utility_bill_priya.pdf",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Priya Raman",
+            "address": "1420 Wilshire Blvd Apt 7B, Los Angeles, CA 90017",
+            "statement_date": "2026-08-20"
+          },
+          "confidence": 0.93
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "escalate",
+    "gate": "GATE_CRITICAL_DATA",
+    "must_have": [
+      "DOB_MISMATCH"
+    ],
+    "must_not_have": [],
+    "risk_rating_max": "medium"
+  }
+}

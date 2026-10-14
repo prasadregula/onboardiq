@@ -1,0 +1,128 @@
+{
+  "id": "G09_business_clean_low_risk_auto_approve",
+  "description": "Corporation, two owners at 60/40 both with ID, control person, domestic, low risk → auto_approve",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G09",
+    "applicant_type": "business",
+    "declared": {
+      "entity_name": "Sierra Dental Group Inc",
+      "address": "910 Main St, Fresno, CA 93721",
+      "country": "US",
+      "industry": "dental practice",
+      "product": "business_checking",
+      "expected_monthly_volume_usd": 80000
+    },
+    "parties": [
+      {
+        "key": "e",
+        "role": "entity",
+        "name": "Sierra Dental Group Inc",
+        "country_of_residence": "US"
+      },
+      {
+        "key": "o1",
+        "role": "beneficial_owner",
+        "name": "Grace Lin",
+        "dob": "1972-03-03",
+        "country_of_residence": "US",
+        "ownership_pct": 60,
+        "is_control_person": true
+      },
+      {
+        "key": "o2",
+        "role": "beneficial_owner",
+        "name": "Samuel Adeyemi",
+        "dob": "1978-10-21",
+        "country_of_residence": "US",
+        "ownership_pct": 40
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "articles_of_incorporation",
+        "filename": "articles.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Sierra Dental Group Inc",
+            "state": "CA",
+            "formed": "2019-04-02"
+          },
+          "confidence": 0.95
+        }
+      },
+      {
+        "doc_type": "ein_letter",
+        "filename": "ein.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Sierra Dental Group Inc",
+            "ein": "**-***1234"
+          },
+          "confidence": 0.96
+        }
+      },
+      {
+        "doc_type": "ownership_declaration",
+        "filename": "ubo.pdf",
+        "mock_extraction": {
+          "fields": {
+            "entity_name": "Sierra Dental Group Inc",
+            "owners": [
+              {
+                "name": "Grace Lin",
+                "pct": 60
+              },
+              {
+                "name": "Samuel Adeyemi",
+                "pct": 40
+              }
+            ]
+          },
+          "confidence": 0.94
+        }
+      },
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_grace.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Grace Lin",
+            "dob": "1972-03-03",
+            "id_number": "D1010101",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "o1"
+      },
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_samuel.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Samuel Adeyemi",
+            "dob": "1978-10-21",
+            "id_number": "D2020202",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "o2"
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "auto_approve",
+    "risk_rating": "low",
+    "must_have": [],
+    "must_not_have": [
+      "UBO_COVERAGE_GAP",
+      "UBO_MISSING_ID",
+      "CONTROL_PERSON_MISSING"
+    ],
+    "gate": "GATE_STP"
+  }
+}

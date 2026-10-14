@@ -1,0 +1,65 @@
+{
+  "id": "G04_individual_sanctions_match_escalate",
+  "description": "Applicant name + DOB match a demo SDN entry → escalate, GATE_SANCTIONS",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G04",
+    "applicant_type": "individual",
+    "declared": {
+      "address": "1420 Wilshire Blvd Apt 7B, Los Angeles, CA 90017",
+      "country": "US",
+      "product": "checking",
+      "expected_monthly_volume_usd": 4000,
+      "id_number": "X5551212"
+    },
+    "parties": [
+      {
+        "key": "a",
+        "role": "applicant",
+        "name": "Viktor A. Sokolov-Marin",
+        "dob": "1968-03-14",
+        "nationality": "RU",
+        "country_of_residence": "US"
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "passport",
+        "filename": "passport_viktor.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Viktor A. Sokolov-Marin",
+            "dob": "1968-03-14",
+            "id_number": "X5551212",
+            "expiry": "2031-05-01",
+            "issuing_country": "RU"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "a"
+      },
+      {
+        "doc_type": "utility_bill",
+        "filename": "utility_bill_viktor.pdf",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Viktor Sokolov-Marin",
+            "address": "1420 Wilshire Blvd Apt 7B, Los Angeles, CA 90017",
+            "statement_date": "2026-08-20"
+          },
+          "confidence": 0.93
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "escalate",
+    "gate": "GATE_SANCTIONS",
+    "must_have": [
+      "SCREENING_SANCTIONS_MATCH"
+    ],
+    "must_not_have": [],
+    "review_priority": "sanctions",
+    "risk_rating_max": "high"
+  }
+}

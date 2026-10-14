@@ -1,0 +1,65 @@
+{
+  "id": "G12_individual_cash_intensive_medium_needs_review",
+  "description": "Sole proprietor car wash (cash intensive, 20) + increased-monitoring nationality (0, US resident) → Medium → analyst confirms",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G12",
+    "applicant_type": "individual",
+    "declared": {
+      "address": "77 Sunset Blvd, Los Angeles, CA 90028",
+      "country": "US",
+      "industry": "car wash (sole proprietor)",
+      "product": "business_checking",
+      "expected_monthly_volume_usd": 300000,
+      "id_number": "D8080808"
+    },
+    "parties": [
+      {
+        "key": "a",
+        "role": "applicant",
+        "name": "Ibrahim Sall",
+        "dob": "1983-03-23",
+        "country_of_residence": "US"
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "drivers_license",
+        "filename": "drivers_license_ibrahim.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Ibrahim Sall",
+            "dob": "1983-03-23",
+            "id_number": "D8080808",
+            "expiry": "2031-05-01",
+            "issuing_country": "US"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "a"
+      },
+      {
+        "doc_type": "utility_bill",
+        "filename": "utility_bill_ibrahim.pdf",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Ibrahim Sall",
+            "address": "77 Sunset Blvd, Los Angeles, CA 90028",
+            "statement_date": "2026-08-20"
+          },
+          "confidence": 0.93
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "needs_review",
+    "gate": "GATE_MEDIUM_RISK",
+    "risk_rating": "medium",
+    "must_have": [
+      "RISK_MEDIUM"
+    ],
+    "must_not_have": [],
+    "review_priority": "medium_risk"
+  }
+}

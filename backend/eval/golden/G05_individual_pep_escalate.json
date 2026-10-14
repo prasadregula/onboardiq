@@ -1,0 +1,66 @@
+{
+  "id": "G05_individual_pep_escalate",
+  "description": "Applicant is a PEP → escalate for EDD, rated High regardless of score",
+  "must_pass": true,
+  "application": {
+    "external_ref": "G05",
+    "applicant_type": "individual",
+    "declared": {
+      "address": "88 Mission St Unit 12, San Francisco, CA 94105",
+      "country": "US",
+      "product": "private_banking",
+      "private_banking": true,
+      "expected_monthly_volume_usd": 120000,
+      "id_number": "N77001"
+    },
+    "parties": [
+      {
+        "key": "a",
+        "role": "applicant",
+        "name": "Delphine Okonkwo-Baptiste",
+        "dob": "1971-05-30",
+        "nationality": "NG",
+        "country_of_residence": "US"
+      }
+    ],
+    "documents": [
+      {
+        "doc_type": "passport",
+        "filename": "passport_delphine.jpg",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Delphine Okonkwo-Baptiste",
+            "dob": "1971-05-30",
+            "id_number": "N77001",
+            "expiry": "2031-05-01",
+            "issuing_country": "NG"
+          },
+          "confidence": 0.97
+        },
+        "party_key": "a"
+      },
+      {
+        "doc_type": "utility_bill",
+        "filename": "utility_bill_delphine.pdf",
+        "mock_extraction": {
+          "fields": {
+            "full_name": "Delphine Okonkwo-Baptiste",
+            "address": "88 Mission St Unit 12, San Francisco, CA 94105",
+            "statement_date": "2026-08-20"
+          },
+          "confidence": 0.93
+        }
+      }
+    ]
+  },
+  "expect": {
+    "outcome": "escalate",
+    "gate": "GATE_PEP_EDD",
+    "risk_rating": "high",
+    "must_have": [
+      "SCREENING_PEP_MATCH"
+    ],
+    "must_not_have": [],
+    "review_priority": "pep"
+  }
+}
