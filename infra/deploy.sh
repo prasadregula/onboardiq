@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploys OnboardIQ. Prereqs: az login, jq (the image is built in ACR - no local Docker needed).
 # Environment-specific values live OUTSIDE the repo:
-#   infra/.deploy.env      OPENAI_RG, OPENAI_NAME, ENTRA_API_CLIENT_ID (and optionally RG, LOC)   - gitignored
+#   infra/.deploy.env      OPENAI_RG, OPENAI_NAME, ENTRA_API_CLIENT_ID (optional: RG, LOC, BUDGET_EMAIL, BUDGET_AMOUNT) - gitignored
 #   infra/params.dev.json  copy of params.example.json with your endpoint and CORS origin       - gitignored
 #   ./deploy.sh
 set -euo pipefail
@@ -15,6 +15,13 @@ ACR=${ACR:-acronboardiq${RG##*-}}          # set ACR=<existing acr name> to reus
 PARAMS=${PARAMS:-params.dev.json}
 [ -f "$PARAMS" ] || { echo "Missing $PARAMS - copy params.example.json to $PARAMS and fill in your values" >&2; exit 1; }
 TAG=${TAG:-$(date +%Y%m%d%H%M)}
+# Cost guard: dev must scale to zero. An always-on replica (plus anything it keeps awake) is how a $1.50/day
+# environment became $19/day. Override only on purpose: ALLOW_ALWAYS_ON=1 ./deploy.sh
+MIN_REPLICAS=$(jq -r '.parameters.minReplicas.value // 0' "$PARAMS")
+if [ "$MIN_REPLICAS" != "0" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
+  echo "STOP: $PARAMS has minReplicas=$MIN_REPLICAS. Set it to 0 (scale to zero) or run with ALLOW_ALWAYS_ON=1." >&2; exit 1; fi
+if [ "$(jq -r '.parameters.deploySearch.value // false' "$PARAMS")" = "true" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
+  echo "STOP: deploySearch=true adds Azure AI Search Basic (about US\$75/month). Run with ALLOW_ALWAYS_ON=1 if intended." >&2; exit 1; fi
 : "${ENTRA_API_CLIENT_ID:?set ENTRA_API_CLIENT_ID to the OnboardIQ-API app registration client id}"
 SQL_PASSWORD=${SQL_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)Aa1!}
 ME_OID=$(az ad signed-in-user show --query id -o tsv)
@@ -98,12 +105,32 @@ if [ -z "$(az role assignment list --assignee "$ME_OID" --role "Key Vault Secret
 fi
 retry az keyvault secret set --vault-name "$KV" -n sql-admin-password --value "$SQL_PASSWORD" -o none
 echo "SQL admin password stored in Key Vault secret 'sql-admin-password'"
+
+# Cost alert (optional): set BUDGET_EMAIL (and BUDGET_AMOUNT, default 10 USD/month) in .deploy.env.
+# Emails at 50%, 80% and 100% of actual spend and when the month is FORECAST to pass 100%. Created once, then left alone.
+if [ -n "${BUDGET_EMAIL:-}" ]; then
+  SUB_ID=$(az account show --query id -o tsv)
+  BUDGET_URL="https://management.azure.com/subscriptions/$SUB_ID/resourceGroups/$RG/providers/Microsoft.Consumption/budgets/onboardiq-monthly?api-version=2023-05-01"
+  if az rest --method get --url "$BUDGET_URL" -o none 2>/dev/null; then
+    echo "Budget alert 'onboardiq-monthly' already exists"
+  else
+    n() { echo "\"$1\":{\"enabled\":true,\"operator\":\"GreaterThan\",\"threshold\":$2,\"thresholdType\":\"$3\",\"contactEmails\":[\"$BUDGET_EMAIL\"]}"; }
+    az rest --method put --url "$BUDGET_URL" --body "{\"properties\":{\"category\":\"Cost\",\"amount\":${BUDGET_AMOUNT:-10},
+      \"timeGrain\":\"Monthly\",\"timePeriod\":{\"startDate\":\"$(date -u +%Y-%m-01T00:00:00Z)\"},
+      \"notifications\":{$(n actual50 50 Actual),$(n actual80 80 Actual),$(n actual100 100 Actual),$(n forecast100 100 Forecasted)}}}" -o none \
+      && echo "Budget alert created: US\$${BUDGET_AMOUNT:-10}/month for $RG, emails to $BUDGET_EMAIL" \
+      || echo "WARN: could not create the budget alert (needs Cost Management Contributor or Owner) - create one in the portal"
+  fi
+fi
 echo
 echo "API:            $(jq -r .apiUrl.value outputs.json)"
 echo "API identity:   $API_NAME ($PRINCIPAL)"
 echo "SQL server:     $(jq -r .sqlServerFqdn.value outputs.json)"
 echo
-echo "NEXT:"
+echo "COST: minReplicas=$MIN_REPLICAS (scales to zero), SQL auto-pauses after 60 min idle, logs capped at $(jq -r '.parameters.logDailyCapGb.value // "0.5"' "$PARAMS") GB/day."
+echo "      Check any time with: ./cost-check.sh"
+echo
+echo "NEXT (first deployment only - skip these on a redeploy):"
 echo " 1. Grant the managed identity in SQL: edit sql-grant-managed-identity.sql with '$API_NAME' and run it as $ME_UPN"
 echo " 2. Seed the OFAC lists once:  az containerapp job start -n caj-onboardiq-dev-ofac -g $RG"
 echo " 3. Restart the API so migrations + screening load:  az containerapp revision restart -n $API_NAME -g $RG --revision \$(az containerapp show -n $API_NAME -g $RG --query properties.latestRevisionName -o tsv)"

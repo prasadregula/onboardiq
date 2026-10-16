@@ -38,6 +38,8 @@ param sqlAadAdminObjectId string = ''
 
 param minReplicas int = 0
 param maxReplicas int = 3
+@description('Daily cap on log ingestion (GB) so a log storm cannot run up a bill. -1 = no cap.')
+param logDailyCapGb string = '0.5'
 
 var name = 'onboardiq-${env}'
 var tags = { project: 'onboardiq', env: env }
@@ -47,7 +49,7 @@ resource logs 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: 'log-${name}'
   location: location
   tags: tags
-  properties: { sku: { name: 'PerGB2018' }, retentionInDays: 30 }
+  properties: { sku: { name: 'PerGB2018' }, retentionInDays: 30, workspaceCapping: { dailyQuotaGb: json(logDailyCapGb) } }
 }
 
 resource appi 'Microsoft.Insights/components@2020-02-02' = {

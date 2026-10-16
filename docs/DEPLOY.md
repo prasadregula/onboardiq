@@ -54,7 +54,9 @@ Then add the SWA origin (`https://<host>.azurestaticapps.net`) to `corsOrigins` 
 - **Scaling**: min 0 / max 2 replicas in dev; agent runs are background tasks inside the API replica, so set `minReplicas: 1` in prod (a scale-to-zero replica dying mid-run leaves the case in `processing` — the `/run` endpoint rejects a second run until an operator resets it; a stuck-run sweeper is on the drop-3 list).
 - **Migrations**: run at startup (`alembic upgrade head`) — Alembic takes a lock, safe with 2 workers. Schema changes = new revision via `alembic revision --autogenerate` locally (CI checks `alembic check`).
 - **Data retention**: blob soft-delete 30 days; audit events are append-only. Purging a case is intentionally not an API.
-- **Cost**: ~$10–20/month idle (SQL serverless auto-pause 60 min, Container Apps free grant, Log Analytics) plus pennies per case. Enabling `deploySearch` adds ~$75/month.
+- **Cost**: a few US cents a day when idle (Container Registry Basic and storage); the API scales to zero and SQL serverless auto-pauses after 60 minutes, so each working session adds roughly US$0.30-0.60 of SQL compute, plus pennies per case. Enabling `deploySearch` adds about US$75/month.
+- **Cost guardrails**: `deploy.sh` refuses `minReplicas > 0` or `deploySearch=true` unless `ALLOW_ALWAYS_ON=1`; Log Analytics ingestion is capped (`logDailyCapGb`, default 0.5 GB/day); set `BUDGET_EMAIL` in `.deploy.env` for a monthly budget alert (50/80/100% actual, 100% forecast); run `infra/cost-check.sh` any time (read-only, does not wake SQL) for replica count, SQL status and month-to-date cost by service.
+- **Lesson**: health and readiness probes must never touch a paid back end. A readiness probe that queried SQL every 10 seconds kept serverless SQL awake around the clock (about US$1.50 to US$19 a day) until `/ready` was changed to check only the process.
 
 ## 6. Rollback
 `az containerapp revision list` → `az containerapp ingress traffic set --revision-weight <previous>=100`. Migrations are forward-only; keep them additive.

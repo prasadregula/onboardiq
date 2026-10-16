@@ -26,6 +26,9 @@
     "maxReplicas": {
       "value": 2
     },
+    "logDailyCapGb": {
+      "value": "0.5"
+    },
     "corsOrigins": {
       "value": "https://<your-static-web-app>.azurestaticapps.net,http://localhost:5180"
     }

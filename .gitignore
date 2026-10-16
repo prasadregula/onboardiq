@@ -27,3 +27,6 @@ frontend/.env.*
 *.db-wal
 .pytest_cache/
 .ruff_cache/
+
+# deploy and run logs can contain tenant, identity and resource ids
+*.log
