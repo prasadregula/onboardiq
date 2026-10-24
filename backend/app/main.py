@@ -10,15 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import telemetry as tm
-from .api import cases, meta, review
-from .config import get_settings
+from .api import admin, cases, meta, review
+from .config import DEV_ENVS, get_settings
 from .db import init_db
 from .identity import acting_as
 from .providers.screening import get_screening_provider
 from .rag.store import get_policy_store
 
 log = logging.getLogger("onboardiq")
-DEV_ENVS = {"dev", "ci", "test", "local"}
 
 
 @asynccontextmanager
@@ -72,3 +71,4 @@ async def request_context(request: Request, call_next):
 app.include_router(meta.router)
 app.include_router(cases.router)
 app.include_router(review.router)
+app.include_router(admin.router)

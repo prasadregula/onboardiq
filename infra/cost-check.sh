@@ -4,6 +4,7 @@
 #   ./cost-check.sh           show status and month-to-date cost
 #   ./cost-check.sh --sleep   also force the API back to zero replicas (if someone left it warm)
 set -uo pipefail
+export AZURE_CORE_ONLY_SHOW_ERRORS=true   # hide extension "behaviour altered" warnings
 cd "$(dirname "$0")"
 [ -f .deploy.env ] && . ./.deploy.env
 RG=${RG:-rg-onboardiq-dev}
@@ -18,7 +19,8 @@ echo "   minReplicas: $MIN   running replicas now: ${RUNNING:-0}"
 [ "$MIN" != "0" ] && echo "   WARNING: minReplicas is $MIN - the API never scales to zero and bills 24x7"
 
 echo "== Azure SQL"
-az sql db list -g "$RG" --query "[?name=='onboardiq'].{status:status,autoPauseMinutes:autoPauseDelay}" -o table
+SQL_SERVER=$(az sql server list -g "$RG" --query "[0].name" -o tsv)
+az sql db show -g "$RG" -s "$SQL_SERVER" -n onboardiq --query "{status:status,autoPauseMinutes:autoPauseDelay}" -o table
 echo "   (Online right after you used the app is normal; it should be Paused about an hour after the last request)"
 
 echo "== Month-to-date cost for $RG, by service"

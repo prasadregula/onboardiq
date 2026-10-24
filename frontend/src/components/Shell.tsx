@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { api, type Me } from '../lib/api'
+import { api, type AgentControl, type Me } from '../lib/api'
 import { AUTH_MODE, account, initAuth, signIn, signOut } from '../lib/auth'
 
 export const MeContext = createContext<Me | null>(null)
@@ -13,6 +13,24 @@ export default function Shell() {
   const [authState, setAuthState] = useState<'loading' | 'signed_out' | 'ready' | 'error'>('loading')
   const [err, setErr] = useState<string | null>(null)
   const [deleg, setDeleg] = useState<{ ok: boolean; text: string } | null>(null)
+  // Agent kill switch state (w4-3). Loaded once and after each action - deliberately NOT polled: polling would keep the
+  // API and the serverless database awake all day (the readiness-probe cost lesson).
+  const [ctl, setCtl] = useState<AgentControl | null>(null)
+  const [ctlMsg, setCtlMsg] = useState<string | null>(null)
+  const isAdmin = hasRole(me, 'Admin')
+  const pauseAgents = async () => {
+    const reason = window.prompt('Pause ALL agents. New runs are refused and running ones stop at their next step.\n\nReason (recorded):')
+    if (!reason || reason.trim().length < 3) return
+    try { setCtl(await api.pauseAgents(reason.trim())) } catch (e: any) { setCtlMsg(e.message) }
+  }
+  const resumeAgents = async () => {
+    try { setCtl(await api.resumeAgents('resumed from the review queue')) } catch (e: any) { setCtlMsg(e.message) }
+  }
+  const resetDemo = async () => {
+    if (!window.confirm('Delete the fictional golden cases and run all of them again? This takes about 2 minutes.')) return
+    try { await api.demoReset(); setCtlMsg('Demo data is being reloaded. Refresh the queue in about 2 minutes.') }
+    catch (e: any) { setCtlMsg(e.message) }
+  }
   const verifyDelegation = async () => {
     setDeleg({ ok: true, text: 'Checking…' })
     try {
@@ -32,6 +50,7 @@ export default function Shell() {
         if (AUTH_MODE === 'entra' && !account()) { setAuthState('signed_out'); return }
         const [h, m] = await Promise.all([api.health().catch(() => ({ ok: false })), api.me()])
         setHealth(h); setMe(m); setAuthState('ready')
+        api.agents().then(setCtl).catch(() => setCtl(null))
       } catch (e: any) { setErr(e.message); setAuthState('error') }
     })()
   }, [])
@@ -76,12 +95,32 @@ export default function Shell() {
                 </span>
               )}
               {me && <span>{me.name} <span className="text-slate-400">·</span> {me.roles.map(r => <span key={r} className="chip bg-slate-100 text-slate-700 ml-1">{r}</span>)}</span>}
+              {isAdmin && ctl && !ctl.paused && <button className="btn-ghost !py-0.5 text-rose-700" onClick={pauseAgents}
+                title="Kill switch: stop every agent now (Admin only, recorded)">Pause agents</button>}
+              {isAdmin && ctl?.demo_reset_enabled && <button className="btn-ghost !py-0.5" onClick={resetDemo}
+                title="Reload and re-run the fictional golden cases (non-production only)">Reset demo data</button>}
               {AUTH_MODE === 'entra' && <button className="btn-ghost !py-0.5" onClick={verifyDelegation}
                 title="Exchange your token on-behalf-of you for Microsoft Graph and confirm it is still you">Verify delegation</button>}
               {AUTH_MODE === 'entra' && <button className="btn-ghost !py-0.5" onClick={signOut}>Sign out</button>}
             </div>
           </div>
         </header>
+        {ctl?.paused && (
+          <div role="alert" className="text-sm px-4 py-2 bg-rose-600 text-white">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+              <span><b>All agents are paused</b> by {ctl.changed_by}{ctl.changed_at ? ` at ${new Date(ctl.changed_at).toLocaleString()}` : ''}: {ctl.reason}.
+                New runs are refused; running ones stop at their next step.</span>
+              {isAdmin && <button className="px-3 py-0.5 rounded bg-white text-rose-700 font-medium" onClick={resumeAgents}>Resume agents</button>}
+            </div>
+          </div>
+        )}
+        {ctlMsg && (
+          <div role="status" className="text-sm px-4 py-2 bg-slate-100 text-slate-800">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+              <span>{ctlMsg}</span><button className="btn-ghost !py-0.5" onClick={() => setCtlMsg(null)}>Dismiss</button>
+            </div>
+          </div>
+        )}
         {deleg && (
           <div role="status" className={`text-sm px-4 py-2 ${deleg.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>
             <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">

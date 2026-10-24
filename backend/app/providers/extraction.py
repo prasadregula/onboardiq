@@ -9,7 +9,9 @@ Normalised output (every provider returns this shape) so tools never care where 
 """
 from __future__ import annotations
 
-from typing import Any
+import contextvars
+from contextlib import contextmanager
+from typing import Any, Iterator
 
 from ..config import Settings, get_settings
 from ..models import Document
@@ -106,8 +108,24 @@ def _norm_key(k: str) -> str:
     return _KEYMAP.get(k, k.lower())
 
 
+_force_fixtures: contextvars.ContextVar[bool] = contextvars.ContextVar("onboardiq_force_fixture_extraction", default=False)
+
+
+@contextmanager
+def fixture_extraction() -> Iterator[None]:
+    """Use the documents' attached fixtures instead of Document Intelligence for everything inside the block.
+    Only the golden-case demo reset uses this: those fictional documents have no image to read."""
+    token = _force_fixtures.set(True)
+    try:
+        yield
+    finally:
+        _force_fixtures.reset(token)
+
+
 def get_extraction_provider() -> ExtractionProvider:
     s = get_settings()
+    if _force_fixtures.get():
+        return MockExtractionProvider()
     if s.extraction_provider == "azure" and s.doc_intel_endpoint:
         return AzureDocumentIntelligenceProvider(s)
     return MockExtractionProvider()

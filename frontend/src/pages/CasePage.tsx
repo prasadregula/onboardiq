@@ -269,16 +269,27 @@ function Risk({ d }: { d: CaseDetail }) {
 }
 
 function Timeline({ audit, runId }: { audit: AuditEvent[]; runId?: string }) {
-  const evs = audit.filter(e => e.run_id === runId && ['tool_call', 'tool_result', 'tool_error', 'llm_message', 'policy_gate', 'decision', 'run_started', 'run_finished'].includes(e.event_type))
-  const colour: Record<string, string> = { tool_call: 'bg-indigo-500', tool_result: 'bg-emerald-500', tool_error: 'bg-rose-500', llm_message: 'bg-violet-500', policy_gate: 'bg-amber-500', decision: 'bg-slate-800', run_started: 'bg-slate-400', run_finished: 'bg-slate-400' }
+  const evs = audit.filter(e => e.run_id === runId && ['tool_call', 'tool_result', 'tool_error', 'tool_denied', 'llm_message', 'policy_gate', 'decision', 'run_started', 'run_aborted', 'run_failed', 'run_finished'].includes(e.event_type))
+  const colour: Record<string, string> = { tool_call: 'bg-indigo-500', tool_result: 'bg-emerald-500', tool_error: 'bg-rose-500', tool_denied: 'bg-rose-700', llm_message: 'bg-violet-500', policy_gate: 'bg-amber-500', decision: 'bg-slate-800', run_started: 'bg-slate-400', run_aborted: 'bg-rose-700', run_failed: 'bg-rose-700', run_finished: 'bg-slate-400' }
   return (
     <Section title="Agent timeline (latest run)">
+      <p className="text-xs text-slate-500 mb-3">Each tool call shows the agent identity it ran under and the person it acted for. Red marks are refusals by a control.</p>
       <ol className="relative border-l border-slate-200 ml-2">{evs.map(e => (
         <li key={e.seq} className="ml-4 mb-3">
           <span className={`absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full ${colour[e.event_type] ?? 'bg-slate-300'}`} />
           <div className="text-xs text-slate-500">#{e.seq} · {fmt(e.ts)} · {e.actor}</div>
           <div className="text-sm font-medium">{e.event_type}{e.payload?.tool ? ` · ${e.payload.tool}` : ''}{e.payload?.duration_ms != null ? ` · ${e.payload.duration_ms} ms` : ''}{e.payload?.gate ? ` · ${e.payload.gate} → ${e.payload.outcome}` : ''}</div>
-          {e.event_type === 'tool_error' && <div className="text-sm text-rose-700">{e.payload.error}</div>}
+          {(e.event_type === 'tool_call' || e.event_type === 'tool_error') && e.payload?.agent_role && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="chip bg-indigo-50 text-indigo-800">{e.payload.agent_role} agent</span>
+              <span className="mono text-slate-500" title="managed identity used for this call">{e.payload.identity}</span>
+              {e.payload.on_behalf_of?.subject && <span className="text-slate-500">· for <b className="text-slate-700">{e.payload.on_behalf_of.subject}</b></span>}
+            </div>)}
+          {e.event_type === 'tool_error' && <div className="text-sm text-rose-700">Refused or failed: {e.payload.error}</div>}
+          {e.event_type === 'tool_denied' && <div className="text-sm text-rose-700">Denied by the policy enforcement point before any code ran: {e.payload.reason}
+            <span className="text-xs text-slate-500"> (caller: {e.payload.caller_role})</span></div>}
+          {e.event_type === 'run_aborted' && <div className="text-sm text-rose-700"><b>Run stopped by a control</b> ({e.payload.code}): {e.payload.message}. No decision was made; the case went to an analyst.</div>}
+          {e.event_type === 'run_failed' && <div className="text-sm text-rose-700">{e.payload.error}</div>}
           {e.event_type === 'llm_message' && <div className="text-xs text-slate-600 whitespace-pre-wrap max-h-32 overflow-auto">{e.payload.content ?? (e.payload.tool_calls ?? []).map((t: any) => `→ ${t.name}(${JSON.stringify(t.arguments)})`).join('\n')}</div>}
           {(e.event_type === 'tool_result' || e.event_type === 'decision') && <details><summary className="text-xs text-slate-500 cursor-pointer">payload</summary><pre className="text-xs bg-slate-50 rounded p-2 overflow-auto max-h-64">{JSON.stringify(e.payload, null, 1)}</pre></details>}
         </li>))}</ol>

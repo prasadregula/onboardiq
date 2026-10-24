@@ -64,7 +64,12 @@ def process_case(session: Session, case: Case, mode: str | None = None, actor: s
     session.add(case)
     session.flush()
     run = run_case(session, case, mode, initiated_by=initiated_by or system_ref(actor))
-    if run.status != "finished":
+    if run.status == "aborted":  # a kill switch or budget stopped the run (app/control.py): an analyst takes over
+        code = (run.error or "RUN_ABORTED").split(":", 1)[0]
+        case.status = CaseStatus.needs_review
+        case.decision_reason = f"Agent run stopped by a control before a decision: {run.error}"
+        _open_task(session, case, run, "other", [code])
+    elif run.status != "finished":
         case.status = CaseStatus.needs_review
         _open_task(session, case, run, "other", ["RUN_FAILED"])
     else:

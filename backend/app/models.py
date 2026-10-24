@@ -171,3 +171,24 @@ class AuditEvent(SQLModel, table=True):
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     prev_hash: str = Field(max_length=64)
     hash: str = Field(max_length=64)
+
+
+class AgentControl(SQLModel, table=True):
+    """Platform-wide agent controls (w4-3). One row (id=1). Read before every run and every tool call, so a pause
+    reaches every replica on its next tool call - no restart, no cache to wait for."""
+    __tablename__ = "agent_controls"
+    id: int = Field(default=1, primary_key=True)
+    paused: bool = False
+    reason: Optional[str] = Field(default=None, max_length=500)
+    changed_by: Optional[str] = Field(default=None, max_length=200)
+    changed_at: Optional[datetime] = Field(default=None, sa_type=UTCDateTime)
+
+
+class ControlEvent(SQLModel, table=True):
+    """Who paused or resumed the agents, when and why. Platform-level, so it lives outside the per-case audit chain."""
+    __tablename__ = "control_events"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ts: datetime = Field(default_factory=utcnow, sa_type=UTCDateTime)
+    actor: str = Field(max_length=200)
+    action: str = Field(max_length=32)  # pause | resume | demo_reset
+    reason: Optional[str] = Field(default=None, max_length=500)

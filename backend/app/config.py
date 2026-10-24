@@ -14,6 +14,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+DEV_ENVS = {"dev", "ci", "test", "local"}  # environments where dev conveniences (API-key auth, demo reset) are allowed
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ONBOARDIQ_", env_file=".env", extra="ignore")
 
@@ -25,7 +28,12 @@ class Settings(BaseSettings):
 
     # Orchestration
     orchestrator_mode: Literal["scripted", "llm"] = "scripted"
-    max_tool_calls: int = 14
+    max_tool_calls: int = 14  # soft step budget for the model loop: when used up, the checklist finishes deterministically
+    # Hard per-run budgets (w4-3, app/control.py): exceeding one stops the run and sends the case to an analyst.
+    run_max_tool_calls: int = 30
+    run_max_tokens: int = 100_000
+    run_max_cost_usd: float = 0.05
+    run_max_seconds: int = 180
     prompt_version: str = "kyc-orchestrator/v2"  # v2: rate_risk data-quality scoping + grounding guard
 
     # LLM provider: auto (azure if endpoint set, else ollama if reachable, else mock) | azure | ollama | mock

@@ -89,6 +89,7 @@ Azure services: Container Apps, Azure SQL (serverless), Blob Storage, Document I
 | **Policy enforcement point** | Every tool call is checked in code before it runs: deny-by-default caller allow-list, no unknown arguments, ids must belong to the case, bounded plain-text decision fields. Only human-initiated requests write evidence | `backend/app/agent/policy_point.py` |
 | **Accountable to a person** | Every run and tool event records the agent identity and the analyst it acted for. Secretless on-behalf-of (managed-identity federated credential) for analyst-scoped downstream data | `backend/app/obo.py` |
 | **Grounded risk factors** | Risk factors the model adds are accepted only if they cite a policy section it actually retrieved; others are rejected and logged | `backend/app/agent/tools/risk.py` |
+| **Kill switch and run budgets** | An Admin can pause every agent with one click (recorded with who and why); new runs are refused and running ones stop at their next step. Each run also has hard limits on tool calls, tokens, cost and time. A stopped run never decides; the case goes to an analyst | `backend/app/control.py` |
 | **Tamper-evident audit** | Every event is hash-chained (`sha256(prev ‖ seq ‖ ts ‖ actor ‖ event ‖ payload)`) and verifiable per case | `backend/app/audit.py` |
 | **Sanctions screening done properly** | Coverage-aware fuzzy matching, vessels and aircraft excluded for customers, and a "confirmed" match needs a second identifier (DOB or country); name-only hits go to an analyst | `backend/app/providers/screening.py` |
 | **No lethal trifecta** | The agent reads untrusted documents but has no outbound channel; document text is data, never instructions | Threat model T-01, T-08 |
@@ -104,7 +105,7 @@ The full threat register (T-01 to T-17, mapped to the OWASP Top 10 for LLM appli
 | Golden cases (Azure, real OFAC lists) | 11 / 12; the one deviation is a conservative over-escalation, traced and accepted |
 | Cost per case (gpt-4.1-mini) | about US$0.0035 |
 | Latency per case | about 7 s |
-| Automated tests | 70 |
+| Automated tests | 81 |
 
 ## Lessons from deploying it
 
@@ -121,7 +122,7 @@ Real infrastructure exposed problems that local tests never did. Each one is doc
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest -q                     # 70 tests
+python -m pytest -q                     # 81 tests
 python -m eval.run_eval                 # 12/12 golden cases
 python seed.py                          # load and run the golden cases
 uvicorn app.main:app --reload --port 8080
@@ -136,6 +137,7 @@ Local mode uses a demo watchlist, fixture extraction and a scripted orchestrator
 
 | Document | What it covers |
 |---|---|
+| [docs/DEMO.md](docs/DEMO.md) | 5-minute demo script |
 | [docs/DIAGRAMS.md](docs/DIAGRAMS.md) | Architecture and design flow diagrams |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full design: domain model, tools, decision policy, RAG, review queue, audit |
 | [docs/THREATMODEL.md](docs/THREATMODEL.md) | Trust boundaries, per-action analysis, threat register, build order |
@@ -156,4 +158,4 @@ docs/       architecture, threat model, deployment notes
 
 ## Status
 
-Portfolio project under active development. Next: run budgets and a kill switch, PII redaction before model calls (T-07), a red-team suite as a CI gate, and extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.
+Portfolio project under active development. Next: PII redaction before model calls (T-07), a red-team suite as a CI gate, and extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.

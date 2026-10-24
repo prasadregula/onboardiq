@@ -30,6 +30,8 @@ class RunContext:
     results: dict[str, Any] = field(default_factory=dict)  # tool name -> last output (dict)
     tools_run: set[str] = field(default_factory=set)
     tools_failed: set[str] = field(default_factory=set)  # attempted but errored (e.g. identity lost its role)
+    budget: Any = None  # control.RunBudget - hard per-run limits (w4-3)
+    usage: Any = None   # llm.Usage collected for this run, read by the budget check
 
     def parties(self) -> list[Party]:
         return list(self.session.exec(select(Party).where(Party.case_id == self.case.id)).all())

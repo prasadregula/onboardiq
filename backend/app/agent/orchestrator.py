@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlmodel import Session
 
-from .. import audit
+from .. import audit, control
 from .. import telemetry as tm
 from ..config import get_settings
 from ..findings import Finding
@@ -67,7 +67,15 @@ def _audit_tool(ctx: RunContext, name: str, args: dict, result: Any, error: str 
         audit.record(ctx.session, ctx.case.id, "agent", "tool_result", {"tool": name, "result": result}, ctx.run.id)
 
 
+def _guard(ctx: RunContext) -> None:
+    """w4-3: kill switch + hard run budgets, checked before every tool call and every model turn (raises RunAborted)."""
+    control.check(ctx.session, ctx.budget, ctx.usage, ctx.run.model)
+
+
 def _call(ctx: RunContext, name: str, args: dict) -> tuple[dict | None, str | None]:
+    _guard(ctx)  # outside the tool's try: a stopped run must not look like one failed tool
+    if ctx.budget is not None:
+        ctx.budget.tool_calls += 1
     t0 = time.perf_counter()
     tool = REGISTRY.get(name)
     try:
@@ -145,6 +153,7 @@ def _run_llm(ctx: RunContext) -> dict:
     tools = openai_tool_specs()
     decision: dict | None = None
     for _step in range(s.max_tool_calls):
+        _guard(ctx)
         res = llm.chat(messages, tools=tools, tool_choice="auto", temperature=0.0)  # orchestrator identity; usage booked
         ctx.run.model = res.model or getattr(llm, 'chat_deployment', llm.name)
         audit.record(ctx.session, ctx.case.id, "agent", "llm_message",
@@ -209,17 +218,20 @@ def _run_case(session: Session, case: Case, mode: str | None) -> CaseRun:
                   model=getattr(get_llm(), 'chat_deployment', None) if mode == "llm" else None)
     session.add(run)
     session.flush()
-    ctx = RunContext(session=session, case=case, run=run, settings=s)
+    budget = control.RunBudget.from_settings()
+    ctx = RunContext(session=session, case=case, run=run, settings=s, budget=budget)
     log.info("run started", extra={"case_id": case.id, "run_id": run.id})
     audit.record(session, case.id, "agent", "run_started",
                  {"run_id": run.id, "mode": mode, "model": run.model, "prompt_version": s.prompt_version,
-                  "initiated_by": on_behalf_of(),
+                  "initiated_by": on_behalf_of(), "budget": budget.limits(),
                   "thresholds": {"screening_match": s.screening_match_threshold, "screening_possible": s.screening_possible_threshold,
                                  "doc_confidence": s.doc_confidence_threshold, "ubo_pct": s.ubo_threshold_pct}}, run.id)
     usage = None
     try:
       with usage_scope() as usage, tm.span("agent.run", **{"onboardiq.case_id": case.id, "onboardiq.run_id": run.id,
                                                               "onboardiq.mode": mode}):
+        ctx.usage = usage
+        _guard(ctx)  # a paused platform stops the run before the first step
         decision = run_llm(ctx) if mode == "llm" else run_scripted(ctx)
         run.findings = [f.model_dump() for f in ctx.findings]
         run.risk = ctx.results.get("rate_risk")
@@ -234,6 +246,14 @@ def _run_case(session: Session, case: Case, mode: str | None) -> CaseRun:
                       "model_recommendation": decision["model_recommendation"], "model_tightened": decision["model_tightened"],
                       "finding_codes": sorted({f.code for f in ctx.findings})}, run.id)
         audit.record(session, case.id, "agent", "decision", decision, run.id)
+    except control.RunAborted as a:  # a control stopped the run: no decision, the case goes to an analyst
+        run.status, run.error = "aborted", str(a)[:500]
+        tm.RUNS_FAILED.labels(mode).inc()
+        log.warning("run aborted: %s", a, extra={"case_id": case.id, "run_id": run.id})
+        run.findings = [f.model_dump() for f in ctx.findings]
+        audit.record(session, case.id, "run-control", "run_aborted",
+                     {"code": a.code, "message": a.message, "details": a.details, "tools_run": sorted(ctx.tools_run),
+                      "on_behalf_of": on_behalf_of_short()}, run.id)
     except Exception as e:  # noqa: BLE001 - a failed run is recorded, never lost
         run.status, run.error = "failed", f"{type(e).__name__}: {e}"
         tm.RUNS_FAILED.labels(mode).inc()

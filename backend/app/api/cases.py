@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
-from .. import audit, services
+from .. import audit, control, services
 from ..auth import Principal, current_analyst, require_case_writer, require_reader
 from ..config import get_settings
 from ..db import get_session, session_scope
@@ -132,6 +132,13 @@ def run(case_id: str, background: BackgroundTasks, body: RunRequest | None = Non
     case = _get_case(session, case_id)
     if case.status == CaseStatus.processing:
         raise HTTPException(409, "a run is already in progress for this case")
+    try:  # w4-3 kill switch: refuse new runs up front (running ones stop at their next step)
+        control.ensure_not_paused(session)
+    except control.AgentsPaused as e:
+        audit.record(session, case_id, p.subject, "run_refused",
+                     {"code": control.KILL_SWITCH, "message": str(e), "requested_by": principal_ref(p)})
+        session.commit()
+        raise HTTPException(423, str(e)) from None
     sync = (body.sync if body and body.sync is not None else None)
     if sync is None:
         sync = not s.run_async

@@ -53,6 +53,11 @@ export type AuditEvent = { seq: number; ts: string; actor: string; event_type: s
 export type Stats = { cases_by_status: Record<string, number>; open_review_tasks: number; open_by_priority: Record<string, number> }
 
 export type Me = { subject: string; name: string; roles: string[]; kind: string }
+export type AgentControl = {
+  paused: boolean; reason: string | null; changed_by: string | null; changed_at: string | null; demo_reset_enabled: boolean
+  budget: { max_tool_calls: number; max_tokens: number; max_cost_usd: number; max_seconds: number }
+  history: Array<{ ts: string; actor: string; action: string; reason: string | null }>
+}
 
 export const api = {
   health: () => req<any>('/health'),
@@ -81,5 +86,9 @@ export const api = {
     }
     throw new Error('run did not finish in time')
   },
+  agents: () => req<AgentControl>('/admin/agents'),
+  pauseAgents: (reason: string) => req<AgentControl>('/admin/agents/pause', { method: 'POST', body: JSON.stringify({ reason }) }),
+  resumeAgents: (reason?: string) => req<AgentControl>('/admin/agents/resume', { method: 'POST', body: JSON.stringify({ reason: reason ?? null }) }),
+  demoReset: () => req<any>('/admin/demo/reset', { method: 'POST' }),
   act: (taskId: string, body: Record<string, unknown>) => req<any>(`/review/tasks/${taskId}/action`, { method: 'POST', body: JSON.stringify(body) }),
 }
