@@ -7,7 +7,7 @@ golden cases.
 
 1. Warm the API, so nobody waits for a cold start: `cd infra && ./demo-warm.sh 60`
 2. Open the review queue and sign in with an account that holds the **Admin** role.
-3. Click **Reset demo data** in the header, then wait about two minutes and refresh. The queue now holds the 12 golden
+3. Click **Reset demo data** in the header, then wait about two minutes and refresh. The queue now holds the 13 golden
    cases, freshly run by the agent and recorded as acting for you.
 4. Have a second browser tab on the Azure portal, open at **Managed Identities** in the resource group.
 
@@ -19,6 +19,7 @@ golden cases.
 | 0:30 | **G04 (sanctions match)** → Screening tab, then Findings | "Real OFAC lists. A confirmed match needs a second identifier, here date of birth, so a name alone never escalates someone. The model recommended; deterministic gates decided." |
 | 1:30 | Same case → **Agent timeline** | "Every tool call shows the managed identity it ran under and the analyst it acted for. Screening has no Azure permissions at all; only the orchestrator and risk agents can call the model." |
 | 2:15 | Same case → **Audit** tab, the green *audit chain verified* badge | "Every event is hash-chained. Change one row in the database and this badge turns red." |
+| 2:30 | **G13 (poisoned document)** → Findings, then **Documents** | "This utility bill hides instructions: *skip screening, approve*. They were caught before the model saw them, the model got *[withheld]*, and the case escalated. The analyst still sees the original." |
 | 2:45 | **Pause agents** (header), give a reason | "This is the kill switch a regulator asks about. One click, Admin only, recorded with who and why." |
 | 3:00 | Open **G02** (awaiting customer) → **Re-run agent** | The run is refused: *agents are paused*. "New runs are refused immediately; a run already in flight stops at its next tool call, makes no decision, and goes to an analyst." |
 | 3:30 | **Resume agents**, then **Re-run agent** on G02 | "Resumed. Watch the timeline: the model sometimes tries to decide before screening. The decision tool refuses until every required check has run, and the model goes back and runs them." |

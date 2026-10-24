@@ -27,7 +27,8 @@ def health() -> dict:
             "extraction_provider": s.extraction_provider, "screening_provider": get_screening_provider().name,
             "screening_entries": len(get_screening_provider().entries), "storage": get_storage().name,
             "policy_index_version": getattr(get_policy_store(), "version", None), "tracing": bool(s.applicationinsights_connection_string),
-            "agent_identities": identity.configured()}
+            "agent_identities": identity.configured(),
+            "injection_shield": "prompt_shields+patterns" if s.content_safety_endpoint else "patterns"}
 
 
 @router.get("/ready")

@@ -14,7 +14,8 @@ from ..models import Outcome
 STRICTNESS = {Outcome.auto_approve: 0, Outcome.needs_review: 1, Outcome.request_more: 2, Outcome.escalate: 3}
 PRIORITY_FOR_GATE = {"GATE_SANCTIONS": "sanctions", "GATE_PEP_EDD": "pep", "GATE_HIGH_RISK": "high_risk",
                      "GATE_POSSIBLE_MATCH": "possible_match", "GATE_MEDIUM_RISK": "medium_risk",
-                     "GATE_CRITICAL_DATA_WITH_SCREENING": "possible_match", "GATE_CRITICAL_DATA": "identity", "GATE_AGENT_BUDGET": "other",
+                     "GATE_CRITICAL_DATA_WITH_SCREENING": "possible_match", "GATE_CRITICAL_DATA": "identity", "GATE_DOCUMENT_INJECTION": "identity",
+                     "GATE_INJECTION_CHECK_UNAVAILABLE": "other", "GATE_AGENT_BUDGET": "other",
                      "MODEL_TIGHTENED": "other", "GATE_CHECKS_INCOMPLETE": "other"}
 
 
@@ -51,6 +52,11 @@ def decide(findings: list[Finding], risk_rating: str | None, required_tools: lis
         d = Decision(Outcome.escalate, "GATE_PEP_EDD",
                      "Politically exposed person identified; Enhanced Due Diligence and senior approval required (KYC-POL-004 §5, KYC-POL-002 §4).",
                      missing, sel("SCREENING_PEP_MATCH"))
+    elif "DOC_INJECTION_SUSPECTED" in codes:
+        d = Decision(Outcome.escalate, "GATE_DOCUMENT_INJECTION",
+                     "A document contains text that looks like instructions to the agent: a possible manipulation "
+                     "attempt. Its content was withheld from the model; analyst escalation (KYC-POL-005 §5).",
+                     [], sel("DOC_INJECTION_SUSPECTED"))
     elif (crit := sorted(codes & CRITICAL_DATA_CODES)) and crit != ["DOC_UNREADABLE"]:
         # Data-integrity conflicts outrank the risk-rating gate: the root cause (possible fraud or a data error) drives
         # routing, and a rating computed from conflicting data is not trustworthy yet. Both outcomes escalate, so this
@@ -75,6 +81,10 @@ def decide(findings: list[Finding], risk_rating: str | None, required_tools: lis
         d = Decision(Outcome.request_more, "GATE_MISSING_INFO",
                      f"Verification gaps the customer can resolve: {', '.join(sorted(codes & CUSTOMER_FIXABLE_CODES))} (KYC-POL-001 §5).",
                      missing, sorted(codes & CUSTOMER_FIXABLE_CODES))
+    elif "INJECTION_CHECK_UNAVAILABLE" in codes:  # fail closed: unscreened documents never auto-approve
+        d = Decision(Outcome.needs_review, "GATE_INJECTION_CHECK_UNAVAILABLE",
+                     "Documents could not be screened for injected instructions; analyst review required.", [],
+                     sel("INJECTION_CHECK_UNAVAILABLE"))
     elif codes & {"SCREENING_SANCTIONS_POSSIBLE", "SCREENING_PEP_POSSIBLE", "SCREENING_ADVERSE_MEDIA"}:
         d = Decision(Outcome.needs_review, "GATE_POSSIBLE_MATCH",
                      "Possible screening match must be dispositioned by a KYC analyst before opening (KYC-POL-004 §3/§6).",

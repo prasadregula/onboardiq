@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,7 +34,11 @@ class Settings(BaseSettings):
     run_max_tokens: int = 100_000
     run_max_cost_usd: float = 0.05
     run_max_seconds: int = 180
-    prompt_version: str = "kyc-orchestrator/v2"  # v2: rate_risk data-quality scoping + grounding guard
+    # Azure AI Content Safety Prompt Shields (T-01): scans document text for injected instructions before the model
+    # sees it. Unset = deterministic pattern scan only. Set but unreachable = fail closed (no auto-approval).
+    content_safety_endpoint: Optional[str] = None
+    content_safety_api_version: str = "2024-09-01"
+    prompt_version: str = "kyc-orchestrator/v3"  # v3: document text delimited and declared data-only (T-01)
 
     # LLM provider: auto (azure if endpoint set, else ollama if reachable, else mock) | azure | ollama | mock
     llm_provider: Literal["auto", "azure", "ollama", "mock"] = "auto"

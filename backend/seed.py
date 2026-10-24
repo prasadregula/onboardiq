@@ -1,7 +1,7 @@
 """Load the golden cases into the database and run them, so the review queue has content.
     python seed.py                    # scripted mode
     python seed.py --mode llm         # against Azure OpenAI (needs ONBOARDIQ_AZURE_OPENAI_ENDPOINT)
-    python seed.py --mode llm --reset # first delete earlier golden cases (G01..G12) and everything attached to them
+    python seed.py --mode llm --reset # first delete earlier golden cases (G01..G13) and everything attached to them
 
 In Azure the easier way is the Admin-only "Reset demo data" button in the review queue (non-production only).
 The golden cases are fictional and carry pre-filled extraction results instead of document images, so seeding always

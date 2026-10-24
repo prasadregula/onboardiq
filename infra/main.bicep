@@ -36,6 +36,11 @@ param sqlAdminPassword string = ''
 param sqlAadAdminLogin string = ''
 param sqlAadAdminObjectId string = ''
 
+@description('Deploy Azure AI Content Safety for Prompt Shields document-attack screening (T-01). Keyless; F0 is free.')
+param deployContentSafety bool = true
+@description('Content Safety tier. F0 = free (limited calls/month, one free resource per subscription); use S0 if F0 is taken.')
+param contentSafetySku string = 'F0'
+
 param minReplicas int = 0
 param maxReplicas int = 3
 @description('Daily cap on log ingestion (GB) so a log storm cannot run up a bill. -1 = no cap.')
@@ -136,6 +141,17 @@ resource docIntel 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   sku: { name: env == 'prod' ? 'S0' : 'F0' }
   identity: { type: 'SystemAssigned' }
   properties: { customSubDomainName: 'di-${name}-${take(suffix, 6)}', publicNetworkAccess: 'Enabled', disableLocalAuth: true }
+}
+
+// Prompt Shields (T-01): screens document text for injected instructions before the model sees it. Keyless only;
+// called by the extraction agent's identity, which is the only identity granted access.
+resource contentSafety 'Microsoft.CognitiveServices/accounts@2023-05-01' = if (deployContentSafety) {
+  name: 'cs-${name}'
+  location: location
+  tags: tags
+  kind: 'ContentSafety'
+  sku: { name: contentSafetySku }
+  properties: { customSubDomainName: 'cs-${name}-${take(suffix, 6)}', publicNetworkAccess: 'Enabled', disableLocalAuth: true }
 }
 
 resource search 'Microsoft.Search/searchServices@2023-11-01' = if (deploySearch) {
@@ -255,7 +271,8 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'ONBOARDIQ_IDENTITY_DECISION', value: agentId[4].properties.clientId }
           { name: 'ONBOARDIQ_OBO_CLIENT_ID', value: entraApiClientId }
           { name: 'ONBOARDIQ_OBO_ASSERTION_IDENTITY', value: oboId.properties.clientId }
-        ], deploySearch ? [ { name: 'ONBOARDIQ_SEARCH_ENDPOINT', value: 'https://${search.name}.search.windows.net' } ] : [])
+        ], deploySearch ? [ { name: 'ONBOARDIQ_SEARCH_ENDPOINT', value: 'https://${search.name}.search.windows.net' } ] : [],
+           deployContentSafety ? [ { name: 'ONBOARDIQ_CONTENT_SAFETY_ENDPOINT', value: 'https://cs-${name}-${take(suffix, 6)}.cognitiveservices.azure.com/' } ] : [])
         volumeMounts: [ { volumeName: 'ofac', mountPath: '/mnt/ofac' } ]
         probes: [
           // Startup probe: allow up to 5 min for first boot (SQL wake-up, migrations, policy index, OFAC load) before
@@ -319,6 +336,12 @@ resource raBlobExtraction 'Microsoft.Authorization/roleAssignments@2022-04-01' =
   name: guid(storage.id, agentId[1].id, roles.blobReader)
   scope: storage
   properties: { principalId: agentId[1].properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.blobReader) }
+}
+// Content Safety (Prompt Shields): ONLY the extraction agent, which screens the documents it has just read
+resource raCsExtraction 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployContentSafety) {
+  name: guid(resourceGroup().id, 'cs', agentId[1].id, roles.cogServicesUser)
+  scope: contentSafety
+  properties: { principalId: agentId[1].properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.cogServicesUser) }
 }
 // screening and decision agents: deliberately NO Azure role assignments
 resource raBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

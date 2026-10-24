@@ -92,8 +92,9 @@ Azure services: Container Apps, Azure SQL (serverless), Blob Storage, Document I
 | **Kill switch and run budgets** | An Admin can pause every agent with one click (recorded with who and why); new runs are refused and running ones stop at their next step. Each run also has hard limits on tool calls, tokens, cost and time. A stopped run never decides; the case goes to an analyst | `backend/app/control.py` |
 | **Tamper-evident audit** | Every event is hash-chained (`sha256(prev ‖ seq ‖ ts ‖ actor ‖ event ‖ payload)`) and verifiable per case | `backend/app/audit.py` |
 | **Sanctions screening done properly** | Coverage-aware fuzzy matching, vessels and aircraft excluded for customers, and a "confirmed" match needs a second identifier (DOB or country); name-only hits go to an analyst | `backend/app/providers/screening.py` |
+| **Poisoned-document defence** | Document text is scanned for hidden instructions (patterns + Azure Prompt Shields) before the model sees it. Flagged text is withheld from the model and the case escalates; if the scan service is down, nothing auto-approves. What the model does see is delimited as data and has identity numbers masked | `backend/app/agent/untrusted.py` |
 | **No lethal trifecta** | The agent reads untrusted documents but has no outbound channel; document text is data, never instructions | Threat model T-01, T-08 |
-| **Evaluation gate** | 12 golden cases with pinned gates and a risk ceiling run in CI; per-run cost, tokens and latency are recorded | `backend/eval/` |
+| **Evaluation gate** | 13 golden cases (including a red-team poisoned document) with pinned gates and a risk ceiling run in CI; per-run cost, tokens and latency are recorded | `backend/eval/` |
 
 The full threat register (T-01 to T-17, mapped to the OWASP Top 10 for LLM applications) is in [docs/THREATMODEL.md](docs/THREATMODEL.md).
 
@@ -101,11 +102,11 @@ The full threat register (T-01 to T-17, mapped to the OWASP Top 10 for LLM appli
 
 | Measure | Value |
 |---|---|
-| Golden cases (local) | 12 / 12 |
+| Golden cases (local) | 13 / 13 |
 | Golden cases (Azure, real OFAC lists) | 11 / 12; the one deviation is a conservative over-escalation, traced and accepted |
 | Cost per case (gpt-4.1-mini) | about US$0.0035 |
 | Latency per case | about 7 s |
-| Automated tests | 81 |
+| Automated tests | 87 |
 
 ## Lessons from deploying it
 
@@ -122,8 +123,8 @@ Real infrastructure exposed problems that local tests never did. Each one is doc
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest -q                     # 81 tests
-python -m eval.run_eval                 # 12/12 golden cases
+python -m pytest -q                     # 87 tests
+python -m eval.run_eval                 # 13/13 golden cases
 python seed.py                          # load and run the golden cases
 uvicorn app.main:app --reload --port 8080
 
@@ -158,4 +159,4 @@ docs/       architecture, threat model, deployment notes
 
 ## Status
 
-Portfolio project under active development. Next: PII redaction before model calls (T-07), a red-team suite as a CI gate, and extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.
+Portfolio project under active development. Next: pseudonymising names and addresses before model calls (T-07), a red-team suite as a CI gate, and extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.

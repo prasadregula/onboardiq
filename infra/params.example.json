@@ -17,6 +17,12 @@
     "deploySearch": {
       "value": false
     },
+    "deployContentSafety": {
+      "value": true
+    },
+    "contentSafetySku": {
+      "value": "F0"
+    },
     "deploySql": {
       "value": true
     },

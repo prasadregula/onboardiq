@@ -129,7 +129,7 @@ class ScreenPartiesOutput(BaseModel):
 
 | Tool | Provider | Deterministic? | Produces findings |
 |---|---|---|---|
-| `extract_document` | Azure Document Intelligence (`prebuilt-idDocument`, `prebuilt-read`, layout) / mock fixtures | Provider-dependent; confidence surfaced | `DOC_LOW_CONFIDENCE`, `DOC_EXPIRED`, `DOC_UNREADABLE` |
+| `extract_document` | Azure Document Intelligence (`prebuilt-idDocument`, `prebuilt-read`, layout) / mock fixtures | Provider-dependent; confidence surfaced | `DOC_LOW_CONFIDENCE`, `DOC_EXPIRED`, `DOC_UNREADABLE`, `DOC_INJECTION_SUSPECTED`, `INJECTION_CHECK_UNAVAILABLE` (w4: pattern scan + Prompt Shields, `app/agent/untrusted.py`) |
 | `check_consistency` | Pure Python | Yes | `NAME_MISMATCH`, `DOB_MISMATCH`, `ADDRESS_MISMATCH`, `ID_NUMBER_MISMATCH`, `REQUIRED_DOC_MISSING` |
 | `screen_parties` | List adapter (bundled demo SDN/PEP subset; OFAC SDN CSV or vendor API pluggable) | Yes (fuzzy match with fixed thresholds) | `SCREENING_SANCTIONS_MATCH`, `SCREENING_SANCTIONS_POSSIBLE`, `SCREENING_PEP_MATCH` |
 | `resolve_beneficial_owners` | Pure Python over declared ownership graph | Yes | `UBO_COVERAGE_GAP`, `UBO_MISSING_ID`, `UBO_OVER_100`, `CONTROL_PERSON_MISSING` |
@@ -163,7 +163,8 @@ Evaluated in order; first matching gate wins. The model's recommendation is cons
 1. Any `SCREENING_SANCTIONS_MATCH` (score ≥ 0.90) → `escalate` (`GATE_SANCTIONS`). Non-negotiable.
 2. Any `SCREENING_PEP_MATCH` → `escalate` (`GATE_PEP_EDD`).
 3. Risk rating `high` → `escalate` (`GATE_HIGH_RISK`).
-4. Any critical data conflict (`DOB_MISMATCH`, `ID_NUMBER_MISMATCH`, `UBO_OVER_100`, `DOC_UNREADABLE`): `DOC_UNREADABLE` alone → `request_more` (a clearer copy fixes it); a government-document conflict → `escalate` (`GATE_CRITICAL_DATA`, priority `identity`) because KYC-POL-005 §5 treats it as possible identity fraud, not a customer request; combined with an open screening alert → `escalate` (`GATE_CRITICAL_DATA_WITH_SCREENING`).
+4. *(w4)* `DOC_INJECTION_SUSPECTED` → `escalate` (`GATE_DOCUMENT_INJECTION`, priority `identity`), ranked after sanctions and PEP; `INJECTION_CHECK_UNAVAILABLE` (Prompt Shields configured but unreachable) → at least `needs_review` (`GATE_INJECTION_CHECK_UNAVAILABLE`), so unscreened documents never auto-approve.
+5. Any critical data conflict (`DOB_MISMATCH`, `ID_NUMBER_MISMATCH`, `UBO_OVER_100`, `DOC_UNREADABLE`): `DOC_UNREADABLE` alone → `request_more` (a clearer copy fixes it); a government-document conflict → `escalate` (`GATE_CRITICAL_DATA`, priority `identity`) because KYC-POL-005 §5 treats it as possible identity fraud, not a customer request; combined with an open screening alert → `escalate` (`GATE_CRITICAL_DATA_WITH_SCREENING`).
 5. Any `warning` finding that a customer can fix (`REQUIRED_DOC_MISSING`, `DOC_LOW_CONFIDENCE`, `UBO_COVERAGE_GAP`, `UBO_MISSING_ID`, `CONTROL_PERSON_MISSING`, `ADDRESS_MISMATCH`, `ADDRESS_UNVERIFIED`, `ADDRESS_PO_BOX`, `NAME_MISMATCH`, `DOC_EXPIRED`) → `request_more` (`GATE_MISSING_INFO`) with the list of missing items.
 6. `SCREENING_SANCTIONS_POSSIBLE` (0.75 ≤ score < 0.90), `SCREENING_PEP_POSSIBLE` or `SCREENING_ADVERSE_MEDIA` → `needs_review` (`GATE_POSSIBLE_MATCH`) — a human disposes the alert.
 7. Risk rating `medium` → `needs_review` (`GATE_MEDIUM_RISK`).
