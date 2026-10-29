@@ -13,7 +13,7 @@ import contextvars
 from contextlib import contextmanager
 from typing import Any, Iterator
 
-from ..config import Settings, get_settings
+from ..config import DEV_ENVS, Settings, get_settings
 from ..models import Document
 
 ID_DOC_TYPES = {"passport", "drivers_license", "national_id"}
@@ -78,6 +78,10 @@ class AzureDocumentIntelligenceProvider(ExtractionProvider):
         model_id = DI_MODEL_FOR.get(doc.doc_type, "prebuilt-read")
         storage = get_storage()
         data = storage.get(doc.blob_uri) if doc.blob_uri and storage.exists(doc.blob_uri) else None
+        if data is None and doc.mock_extraction and get_settings().env in DEV_ENVS:
+            # fictional golden-case documents have no image; outside production, use their fixture so a re-run of a
+            # demo case behaves like the original run while newly uploaded documents still go to Document Intelligence
+            return MockExtractionProvider().extract(doc)
         if data is None:
             return {"doc_type": doc.doc_type, "fields": {}, "confidence": 0.0, "provider": self.name,
                     "model": model_id, "pages": 0, "error": "blob not found"}

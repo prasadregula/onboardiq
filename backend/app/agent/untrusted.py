@@ -34,6 +34,7 @@ FIELD_LIMITS = {"full_name": 100, "first_name": 60, "last_name": 60, "entity_nam
                 "id_number": 40, "tin": 20, "ein": 20, "dob": 20, "expiry": 20, "statement_date": 20,
                 "issuing_country": 56, "nationality": 56, "registration_number": 40}
 DEFAULT_LIMIT = 300
+FULL_TEXT_KEY = "_text"  # the whole OCR text of a real document (Document Intelligence): scanned, never sent to the model
 
 _PATTERNS: list[tuple[str, re.Pattern]] = [(name, re.compile(rx, re.I)) for name, rx in [
     ("override_instructions", r"\b(ignore|disregard|forget)\b.{0,40}\b(instruction|rule|previous|above|policy|prompt)"),
@@ -56,7 +57,7 @@ def heuristic_scan(fields: dict[str, Any]) -> list[str]:
     """Reasons a document's extracted fields look like they carry instructions (empty list = nothing found)."""
     reasons = []
     for key, val in _strings(fields).items():
-        if len(val) > FIELD_LIMITS.get(key, DEFAULT_LIMIT):
+        if key != FULL_TEXT_KEY and len(val) > FIELD_LIMITS.get(key, DEFAULT_LIMIT):
             reasons.append(f"overlong:{key}({len(val)})")
         for name, rx in _PATTERNS:
             if rx.search(val):
@@ -110,7 +111,10 @@ def redact_for_model(tool: str, out: dict) -> dict:
         return out
     out = json.loads(json.dumps(out, default=str))
     for d in out.get("documents", []):
-        d["fields"] = {k: (_mask(v) if k in _MASK_KEYS and v else v) for k, v in (d.get("fields") or {}).items()}
+        fields = {k: (_mask(v) if k in _MASK_KEYS and v else v) for k, v in (d.get("fields") or {}).items()}
+        if fields.get(FULL_TEXT_KEY):  # the model needs the typed fields, not the whole page (and its PII)
+            fields[FULL_TEXT_KEY] = f"[full document text not shown to the model: {len(fields[FULL_TEXT_KEY])} characters]"
+        d["fields"] = fields
     return out
 
 
