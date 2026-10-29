@@ -1,0 +1,24 @@
+{
+  "name": "onboardiq-policies",
+  "fields": [
+    {"name": "id", "type": "Edm.String", "key": true, "searchable": false, "filterable": false, "retrievable": true},
+    {"name": "policy_id", "type": "Edm.String", "searchable": false, "filterable": true, "retrievable": true},
+    {"name": "policy_title", "type": "Edm.String", "searchable": true, "filterable": false, "retrievable": true},
+    {"name": "section", "type": "Edm.String", "searchable": true, "filterable": false, "retrievable": true},
+    {"name": "text", "type": "Edm.String", "searchable": true, "filterable": false, "retrievable": true, "analyzer": "en.microsoft"},
+    {"name": "source", "type": "Edm.String", "searchable": false, "filterable": false, "retrievable": true},
+    {"name": "allowed_roles", "type": "Collection(Edm.String)", "searchable": false, "filterable": true, "retrievable": true},
+    {"name": "corpus_version", "type": "Edm.String", "searchable": false, "filterable": true, "retrievable": true},
+    {"name": "vector", "type": "Collection(Edm.Single)", "searchable": true, "retrievable": true, "dimensions": 1536, "vectorSearchProfile": "hnsw"}
+  ],
+  "vectorSearch": {
+    "algorithms": [{"name": "hnsw-algo", "kind": "hnsw"}],
+    "profiles": [{"name": "hnsw", "algorithm": "hnsw-algo"}]
+  },
+  "semantic": {
+    "configurations": [{
+      "name": "policies",
+      "prioritizedFields": {"titleField": {"fieldName": "section"}, "prioritizedContentFields": [{"fieldName": "text"}]}
+    }]
+  }
+}

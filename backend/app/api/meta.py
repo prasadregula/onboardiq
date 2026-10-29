@@ -26,7 +26,8 @@ def health() -> dict:
             "embedding_model": getattr(get_llm(), "embedding_deployment", None),
             "extraction_provider": s.extraction_provider, "screening_provider": get_screening_provider().name,
             "screening_entries": len(get_screening_provider().entries), "storage": get_storage().name,
-            "policy_index_version": getattr(get_policy_store(), "version", None), "tracing": bool(s.applicationinsights_connection_string),
+            "policy_index_version": getattr(get_policy_store(), "version", None),
+            "policy_store": getattr(get_policy_store(), "name", None), "tracing": bool(s.applicationinsights_connection_string),
             "agent_identities": identity.configured(),
             "injection_shield": "prompt_shields+patterns" if s.content_safety_endpoint else "patterns"}
 
@@ -73,10 +74,11 @@ def tools() -> list[dict]:
              "input_schema": t.input_model.model_json_schema()} for t in REGISTRY.values()]
 
 
-@router.get("/policies/search", dependencies=[Depends(require_reader)])
-def policy_search(q: str, k: int = 5) -> list[dict]:
+@router.get("/policies/search")
+def policy_search(q: str, k: int = 5, p: Principal = Depends(require_reader)) -> list[dict]:
+    """Search the policies the CALLER may read (access trimming), as the risk agent's identity."""
     with identity.acting_as("risk"):  # policy retrieval is the risk agent's capability and identity
-        return [c.__dict__ | {"ref": c.ref()} for c in get_policy_store().search(q, top_k=k)]
+        return [c.__dict__ | {"ref": c.ref()} for c in get_policy_store().search(q, top_k=min(k, 20), roles=sorted(p.roles))]
 
 
 @router.post("/admin/screening/refresh", dependencies=[Depends(require_admin)])

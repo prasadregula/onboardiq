@@ -20,8 +20,9 @@ TAG=${TAG:-$(date +%Y%m%d%H%M)}
 MIN_REPLICAS=$(jq -r '.parameters.minReplicas.value // 0' "$PARAMS")
 if [ "$MIN_REPLICAS" != "0" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
   echo "STOP: $PARAMS has minReplicas=$MIN_REPLICAS. Set it to 0 (scale to zero) or run with ALLOW_ALWAYS_ON=1." >&2; exit 1; fi
-if [ "$(jq -r '.parameters.deploySearch.value // false' "$PARAMS")" = "true" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
-  echo "STOP: deploySearch=true adds Azure AI Search Basic (about US\$75/month). Run with ALLOW_ALWAYS_ON=1 if intended." >&2; exit 1; fi
+SEARCH_SKU=$(jq -r '.parameters.searchSku.value // "free"' "$PARAMS")
+if [ "$(jq -r '.parameters.deploySearch.value // false' "$PARAMS")" = "true" ] && [ "$SEARCH_SKU" != "free" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
+  echo "STOP: searchSku=$SEARCH_SKU is a paid Azure AI Search tier (Basic is about US\$75/month). Use \"free\" or run with ALLOW_ALWAYS_ON=1 if intended." >&2; exit 1; fi
 : "${ENTRA_API_CLIENT_ID:?set ENTRA_API_CLIENT_ID to the OnboardIQ-API app registration client id}"
 SQL_PASSWORD=${SQL_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)Aa1!}
 ME_OID=$(az ad signed-in-user show --query id -o tsv)
@@ -95,6 +96,26 @@ if [ -z "$(az ad app federated-credential list --id "$ENTRA_API_CLIENT_ID" --que
     || echo "WARN: could not add the federated credential (need Application Administrator or app owner) - OBO demo disabled"
 fi
 # (image pulls use the user-assigned pull identity configured in main.bicep)
+# Shared Azure AI Search (existingSearchName in params): provision THIS app's index on the existing service and grant
+# roles scoped to that one index - OnboardIQ can fill and query onboardiq-policies but cannot see or change any other
+# index on the service (e.g. another app's), and has no service-level rights at all.
+SEARCH_NAME=$(jq -r '.parameters.existingSearchName.value // empty' "$PARAMS")
+if [ -n "$SEARCH_NAME" ]; then
+  SEARCH_RG=$(az resource list --resource-type Microsoft.Search/searchServices --name "$SEARCH_NAME" --query "[0].resourceGroup" -o tsv)
+  SEARCH_ID=$(az search service show -n "$SEARCH_NAME" -g "$SEARCH_RG" --query id -o tsv)
+  INDEX=onboardiq-policies
+  echo "Provisioning index $INDEX on shared search service $SEARCH_NAME..."
+  # One-off provisioning call with the service admin key (read here, never stored); the application itself is keyless.
+  KEY=$(az search admin-key show --service-name "$SEARCH_NAME" -g "$SEARCH_RG" --query primaryKey -o tsv)
+  curl -sS --fail-with-body -X PUT "https://$SEARCH_NAME.search.windows.net/indexes/$INDEX?api-version=2024-07-01" \
+    -H "Content-Type: application/json" -H "api-key: $KEY" --data @search-index.json -o /dev/null \
+    -w "  index $INDEX: HTTP %{http_code}\n"
+  unset KEY
+  grant_sp "$RISK_PRINCIPAL" "Search Index Data Reader" "$SEARCH_ID/indexes/$INDEX" \
+    || echo "WARN: could not grant the risk agent read access to $INDEX - policy search will fail until it is granted"
+  grant_sp "$PRINCIPAL" "Search Index Data Contributor" "$SEARCH_ID/indexes/$INDEX" \
+    || echo "WARN: could not grant the API write access to $INDEX - the index will stay empty until it is granted"
+fi
 # Keep the SQL admin password in Key Vault (only needed for break-glass; the app uses managed identity).
 # The vault uses RBAC, so the deploying user needs a data-plane role before writing a secret.
 KV_ID=$(az keyvault show -n "$KV" -g "$RG" --query id -o tsv)

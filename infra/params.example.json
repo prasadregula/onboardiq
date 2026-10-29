@@ -17,6 +17,15 @@
     "deploySearch": {
       "value": false
     },
+    "existingSearchName": {
+      "value": ""
+    },
+    "searchSku": {
+      "value": "free"
+    },
+    "searchSemantic": {
+      "value": "free"
+    },
     "deployContentSafety": {
       "value": true
     },

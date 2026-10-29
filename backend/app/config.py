@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     search_endpoint: str | None = None
     search_api_key: str | None = None
     search_index: str = "onboardiq-policies"
+    search_semantic: bool = False  # semantic re-ranking (free plan: limited queries/month); falls back to hybrid
+    search_manage_index: bool = True  # False on a shared service: deploy.sh provisions the index, the app only fills it
 
     # Providers: "mock" or a real adapter name
     extraction_provider: Literal["mock", "azure"] = "mock"

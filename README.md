@@ -78,7 +78,7 @@ flowchart TD
 
 More diagrams (request sequence, identity map, decision gates, trust boundaries, deployment pipeline): **[docs/DIAGRAMS.md](docs/DIAGRAMS.md)**.
 
-Azure services: Container Apps, Azure SQL (serverless), Blob Storage, Document Intelligence, Azure OpenAI, Key Vault (break-glass only), Application Insights. Everything is passwordless: managed identities for every service and Entra tokens for SQL.
+Azure services: Container Apps, Azure SQL (serverless), Blob Storage, Document Intelligence, Azure OpenAI, Azure AI Search (shared free tier, index-scoped access), Azure AI Content Safety, Key Vault (break-glass only), Application Insights. Everything is passwordless: managed identities for every service and Entra tokens for SQL.
 
 ## Security and governance controls
 
@@ -88,6 +88,7 @@ Azure services: Container Apps, Azure SQL (serverless), Blob Storage, Document I
 | **One identity per agent** | Orchestrator, extraction, screening, risk and decision agents each run under their own managed identity with only the Azure roles their job needs. Revoking one breaks only that agent, and the case routes to a human | `backend/app/identity.py`, `infra/main.bicep` |
 | **Policy enforcement point** | Every tool call is checked in code before it runs: deny-by-default caller allow-list, no unknown arguments, ids must belong to the case, bounded plain-text decision fields. Only human-initiated requests write evidence | `backend/app/agent/policy_point.py` |
 | **Accountable to a person** | Every run and tool event records the agent identity and the analyst it acted for. Secretless on-behalf-of (managed-identity federated credential) for analyst-scoped downstream data | `backend/app/obo.py` |
+| **Permission-trimmed policy search** | Policy retrieval runs on Azure AI Search (hybrid keyword + vector, optional semantic re-ranking). Every policy declares who may read it, and every query is filtered to what the analyst the agent acts for may open: the agent never retrieves more than its human could. On a shared search service the app gets its own index and roles scoped to that index only. Retrieval quality and access leaks are scored on a golden set in CI and against the live index | `backend/app/rag/store.py`, `backend/eval/retrieval_eval.py` |
 | **Grounded risk factors** | Risk factors the model adds are accepted only if they cite a policy section it actually retrieved; others are rejected and logged | `backend/app/agent/tools/risk.py` |
 | **Kill switch and run budgets** | An Admin can pause every agent with one click (recorded with who and why); new runs are refused and running ones stop at their next step. Each run also has hard limits on tool calls, tokens, cost and time. A stopped run never decides; the case goes to an analyst | `backend/app/control.py` |
 | **Tamper-evident audit** | Every event is hash-chained (`sha256(prev ‖ seq ‖ ts ‖ actor ‖ event ‖ payload)`) and verifiable per case | `backend/app/audit.py` |
@@ -106,7 +107,8 @@ The full threat register (T-01 to T-17, mapped to the OWASP Top 10 for LLM appli
 | Golden cases (Azure, real OFAC lists) | 11 / 12; the one deviation is a conservative over-escalation, traced and accepted |
 | Cost per case (gpt-4.1-mini) | about US$0.0035 |
 | Latency per case | about 7 s |
-| Automated tests | 87 |
+| Retrieval (golden set, local) | hit@5 0.94 · MRR 0.82 · 0 access leaks |
+| Automated tests | 103 |
 
 ## Lessons from deploying it
 
@@ -123,7 +125,8 @@ Real infrastructure exposed problems that local tests never did. Each one is doc
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest -q                     # 87 tests
+python -m pytest -q                     # 103 tests
+python -m eval.retrieval_eval           # retrieval quality + access trimming
 python -m eval.run_eval                 # 13/13 golden cases
 python seed.py                          # load and run the golden cases
 uvicorn app.main:app --reload --port 8080

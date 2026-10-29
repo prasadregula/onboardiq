@@ -1,6 +1,7 @@
 // OnboardIQ infrastructure (dev by default; prod via a different parameters file).
 //   az deployment group create -g rg-onboardiq-dev -f main.bicep -p @params.dev.json -p apiImage=<acr>/onboardiq-api:<tag>
-// Cost posture: everything scales to zero or is serverless; AI Search is OFF by default (deploySearch=false).
+// Cost posture: everything scales to zero or is serverless; AI Search is OFF by default (deploySearch=false) and,
+// when on, uses the Free tier unless searchSku says otherwise.
 targetScope = 'resourceGroup'
 
 @description('Short environment name (dev|test|prod)')
@@ -28,6 +29,12 @@ param corsOrigins string = 'http://localhost:5180'
 
 @description('Deploy Azure AI Search (Basic, ~$75/mo). Local policy index is used when false.')
 param deploySearch bool = false
+@description('Use an EXISTING search service instead (e.g. the one free tier in the subscription, shared with another app). deploy.sh provisions this app\'s own index there and grants roles scoped to that index only. Leave empty to not use one.')
+param existingSearchName string = ''
+@description('AI Search tier: free (one per subscription, 50 MB, may be removed after long inactivity) or basic (about US$75/month)')
+param searchSku string = 'free'
+@description('Semantic re-ranking plan: free (limited queries per month), standard, or disabled. The app falls back to hybrid if unavailable.')
+param searchSemantic string = 'free'
 @description('Deploy Azure SQL serverless (else the API uses SQLite on an ephemeral volume - dev only)')
 param deploySql bool = true
 @secure()
@@ -158,9 +165,9 @@ resource search 'Microsoft.Search/searchServices@2023-11-01' = if (deploySearch)
   name: 'srch-${name}'
   location: location
   tags: tags
-  sku: { name: 'basic' }
-  identity: { type: 'SystemAssigned' }
-  properties: { replicaCount: 1, partitionCount: 1, hostingMode: 'default', authOptions: { aadOrApiKey: { aadAuthFailureMode: 'http401WithBearerChallenge' } } }
+  sku: { name: searchSku }
+  // Keyless: API keys disabled, every caller uses Entra ID + RBAC (risk agent reads, the API's identity writes)
+  properties: { replicaCount: 1, partitionCount: 1, hostingMode: 'default', disableLocalAuth: true, semanticSearch: searchSemantic }
 }
 
 // ------------------------------------------------------------------------------------------ secrets
@@ -271,7 +278,11 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'ONBOARDIQ_IDENTITY_DECISION', value: agentId[4].properties.clientId }
           { name: 'ONBOARDIQ_OBO_CLIENT_ID', value: entraApiClientId }
           { name: 'ONBOARDIQ_OBO_ASSERTION_IDENTITY', value: oboId.properties.clientId }
-        ], deploySearch ? [ { name: 'ONBOARDIQ_SEARCH_ENDPOINT', value: 'https://${search.name}.search.windows.net' } ] : [],
+        ], !empty(existingSearchName) ? [ { name: 'ONBOARDIQ_SEARCH_ENDPOINT', value: 'https://${existingSearchName}.search.windows.net' }
+                                     { name: 'ONBOARDIQ_SEARCH_SEMANTIC', value: searchSemantic == 'disabled' ? 'false' : 'true' }
+                                     { name: 'ONBOARDIQ_SEARCH_MANAGE_INDEX', value: 'false' } ]
+           : deploySearch ? [ { name: 'ONBOARDIQ_SEARCH_ENDPOINT', value: 'https://srch-${name}.search.windows.net' }
+                              { name: 'ONBOARDIQ_SEARCH_SEMANTIC', value: searchSemantic == 'disabled' ? 'false' : 'true' } ] : [],
            deployContentSafety ? [ { name: 'ONBOARDIQ_CONTENT_SAFETY_ENDPOINT', value: 'https://cs-${name}-${take(suffix, 6)}.cognitiveservices.azure.com/' } ] : [])
         volumeMounts: [ { volumeName: 'ofac', mountPath: '/mnt/ofac' } ]
         probes: [
@@ -323,6 +334,8 @@ var roles = {
   searchContributor: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' // Search Index Data Contributor
   kvSecretsUser: '4633458b-17de-408a-b874-0445c86b69e6'    // Key Vault Secrets User
   blobReader: '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'       // Storage Blob Data Reader
+  searchReader: '1407120a-92aa-4202-b7e9-c0e197c71c8f'     // Search Index Data Reader
+  searchService: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'    // Search Service Contributor (create/update the index)
 }
 
 // Document Intelligence: ONLY the extraction agent (the API's own identity no longer has it - see deploy.sh revoke step)
@@ -354,10 +367,21 @@ resource raKv 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: kv
   properties: { principalId: api.identity.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.kvSecretsUser) }
 }
+// AI Search: the API's own identity creates the index and uploads policy chunks; ONLY the risk agent may query it
 resource raSearch 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySearch) {
   name: guid('search', api.id, roles.searchContributor)
   scope: search
   properties: { principalId: api.identity.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.searchContributor) }
+}
+resource raSearchService 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySearch) {
+  name: guid('search', api.id, roles.searchService)
+  scope: search
+  properties: { principalId: api.identity.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.searchService) }
+}
+resource raSearchRisk 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySearch) {
+  name: guid('search', agentId[3].id, roles.searchReader)
+  scope: search
+  properties: { principalId: agentId[3].properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.searchReader) }
 }
 
 output apiUrl string = 'https://${api.properties.configuration.ingress.fqdn}'

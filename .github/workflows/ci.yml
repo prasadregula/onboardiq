@@ -15,6 +15,8 @@ jobs:
       - run: python -m pytest -q
       - name: Eval gate (scripted baseline must be 100% on must_pass cases)
         run: python -m eval.run_eval --mode scripted
+      - name: Retrieval gate (policy search quality + zero access leaks)
+        run: python -m eval.retrieval_eval
       - uses: actions/upload-artifact@v4
         with: { name: eval-report, path: backend/eval/reports/ }
       - name: Alembic migration is in sync with models

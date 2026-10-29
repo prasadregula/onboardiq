@@ -90,5 +90,6 @@ export const api = {
   pauseAgents: (reason: string) => req<AgentControl>('/admin/agents/pause', { method: 'POST', body: JSON.stringify({ reason }) }),
   resumeAgents: (reason?: string) => req<AgentControl>('/admin/agents/resume', { method: 'POST', body: JSON.stringify({ reason: reason ?? null }) }),
   demoReset: () => req<any>('/admin/demo/reset', { method: 'POST' }),
+  ragEval: () => req<{ summary: { store: string; k: number; queries: number; hit_rate: number; recall: number; mrr: number; access_leaks: number; passed: boolean } }>('/admin/rag/eval'),
   act: (taskId: string, body: Record<string, unknown>) => req<any>(`/review/tasks/${taskId}/action`, { method: 'POST', body: JSON.stringify(body) }),
 }

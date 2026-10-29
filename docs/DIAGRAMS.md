@@ -219,7 +219,7 @@ Untrusted text can influence what the model proposes, but every proposal crosses
 
 ```mermaid
 flowchart LR
-    dev["Code change"] --> ci["GitHub Actions CI<br/>lint · 87 tests · golden-case eval gate<br/>alembic check · frontend build · Bicep build"]
+    dev["Code change"] --> ci["GitHub Actions CI<br/>lint · 103 tests · retrieval gate · golden-case eval gate<br/>alembic check · frontend build · Bicep build"]
     ci --> build["az acr build<br/>pinned base image<br/>build fails if SQL driver libraries are missing"]
     build --> bicep["Bicep deployment<br/>identities · RBAC · Container App · SQL · Storage"]
     bicep --> grants["deploy.sh<br/>cross-resource-group RBAC grants<br/>revoke broad roles<br/>federated credential for OBO"]

@@ -26,6 +26,13 @@ export default function Shell() {
   const resumeAgents = async () => {
     try { setCtl(await api.resumeAgents('resumed from the review queue')) } catch (e: any) { setCtlMsg(e.message) }
   }
+  const checkRetrieval = async () => {
+    setCtlMsg('Running the retrieval check (18 queries)…')
+    try {
+      const { summary: s } = await api.ragEval()
+      setCtlMsg(`Retrieval check · ${s.store}: hit@${s.k} ${s.hit_rate.toFixed(2)} · recall ${s.recall.toFixed(2)} · MRR ${s.mrr.toFixed(2)} · access leaks ${s.access_leaks} · ${s.passed ? 'PASS' : 'FAIL'}`)
+    } catch (e: any) { setCtlMsg(e.message) }
+  }
   const resetDemo = async () => {
     if (!window.confirm('Delete the fictional golden cases and run all of them again? This takes about 2 minutes.')) return
     try { await api.demoReset(); setCtlMsg('Demo data is being reloaded. Refresh the queue in about 2 minutes.') }
@@ -97,6 +104,8 @@ export default function Shell() {
               {me && <span>{me.name} <span className="text-slate-400">·</span> {me.roles.map(r => <span key={r} className="chip bg-slate-100 text-slate-700 ml-1">{r}</span>)}</span>}
               {isAdmin && ctl && !ctl.paused && <button className="btn-ghost !py-0.5 text-rose-700" onClick={pauseAgents}
                 title="Kill switch: stop every agent now (Admin only, recorded)">Pause agents</button>}
+              {isAdmin && <button className="btn-ghost !py-0.5" onClick={checkRetrieval}
+                title="Run the retrieval golden set against the live policy index (quality + access trimming)">Check retrieval</button>}
               {isAdmin && ctl?.demo_reset_enabled && <button className="btn-ghost !py-0.5" onClick={resetDemo}
                 title="Reload and re-run the fictional golden cases (non-production only)">Reset demo data</button>}
               {AUTH_MODE === 'entra' && <button className="btn-ghost !py-0.5" onClick={verifyDelegation}

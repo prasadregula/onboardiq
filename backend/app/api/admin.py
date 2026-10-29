@@ -4,6 +4,7 @@ GET  /admin/agents          any signed-in reader - so every analyst's screen can
 POST /admin/agents/pause    Admin only - stops new runs at once and running ones at their next step
 POST /admin/agents/resume   Admin only
 POST /admin/demo/reset      Admin only, non-production only - reload and re-run the fictional golden cases
+GET  /admin/rag/eval        Admin only - retrieval quality and access-trimming check against the LIVE policy store
 """
 from __future__ import annotations
 
@@ -89,3 +90,14 @@ def demo_reset(background: BackgroundTasks, p: Principal = Depends(require_admin
     background.add_task(_demo_reset, principal_ref(p))
     return Response(status_code=202, media_type="application/json",
                     content='{"accepted": true, "note": "golden cases are being reloaded; refresh the queue in about 2 minutes"}')
+
+
+@router.get("/rag/eval", dependencies=[Depends(require_admin)])
+def rag_eval() -> dict:
+    """Run the retrieval golden set (eval/retrieval_golden.json) against the deployed store, as the risk agent."""
+    from eval.retrieval_eval import evaluate
+
+    from ..identity import acting_as
+    from ..rag.store import get_policy_store
+    with acting_as("risk"):
+        return evaluate(get_policy_store())

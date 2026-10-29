@@ -1,0 +1,25 @@
+{
+  "description": "Retrieval golden set for the policy search. Each query lists the policy sections a correct answer needs (any one in the top k is a hit; recall counts all of them). `roles` is who is asking; `must_not` sections must never be returned to that caller (access trimming).",
+  "k": 5,
+  "thresholds": {"hit_rate": 0.8, "mrr": 0.6, "access_leaks": 0},
+  "queries": [
+    {"q": "what score counts as a confirmed sanctions match", "roles": ["KycAnalyst"], "expect": ["KYC-POL-004 §3"]},
+    {"q": "can we contact the customer while a confirmed sanctions match is open", "roles": ["KycAnalyst"], "expect": ["KYC-POL-004 §4"], "must_not": ["KYC-POL-006 §2", "KYC-POL-006 §3"]},
+    {"q": "politically exposed person requires enhanced due diligence and senior approval", "roles": ["KycAnalyst"], "expect": ["KYC-POL-004 §5", "KYC-POL-002 §4"]},
+    {"q": "adverse media fraud money laundering points added to risk score", "roles": ["KycAnalyst"], "expect": ["KYC-POL-004 §6"]},
+    {"q": "risk factors and weights for the customer risk rating", "roles": ["KycAnalyst"], "expect": ["KYC-POL-002 §2"]},
+    {"q": "score ranges for low medium and high risk rating bands", "roles": ["KycAnalyst"], "expect": ["KYC-POL-002 §3"]},
+    {"q": "beneficial owner 25 percent ownership prong legal entity", "roles": ["KycAnalyst"], "expect": ["KYC-POL-003 §2"]},
+    {"q": "control person with significant responsibility to manage the entity", "roles": ["KycAnalyst"], "expect": ["KYC-POL-003 §3"]},
+    {"q": "which documents are acceptable as proof of address, post office box", "roles": ["KycAnalyst"], "expect": ["KYC-POL-005 §4"]},
+    {"q": "extraction confidence below threshold request a clearer copy", "roles": ["KycAnalyst"], "expect": ["KYC-POL-005 §3"]},
+    {"q": "date of birth on the ID document differs from the application", "roles": ["KycAnalyst"], "expect": ["KYC-POL-005 §5"]},
+    {"q": "identifying information required before opening an account name date of birth address identification number", "roles": ["KycAnalyst"], "expect": ["KYC-POL-001 §2"]},
+    {"q": "when can an account be approved straight through without an analyst", "roles": ["KycAnalyst"], "expect": ["KYC-POL-001 §6", "KYC-POL-002 §6"]},
+    {"q": "OFAC blocked property report deadline business days", "roles": ["BsaOfficer"], "expect": ["KYC-POL-006 §3", "KYC-POL-004 §4"]},
+    {"q": "how does the BSA officer investigate a sanctions alert, 50 percent rule", "roles": ["BsaOfficer"], "expect": ["KYC-POL-006 §2"]},
+    {"q": "how does the BSA officer investigate a sanctions alert, 50 percent rule", "roles": ["KycAnalyst"], "expect": ["KYC-POL-004 §4"], "must_not": ["KYC-POL-006 §1", "KYC-POL-006 §2", "KYC-POL-006 §3", "KYC-POL-006 §4"]},
+    {"q": "suspicious activity report filing deadline after detection", "roles": ["Auditor"], "expect": [], "must_not": ["KYC-POL-006 §3"]},
+    {"q": "closing a sanctions alert as a false positive", "roles": ["Admin"], "expect": ["KYC-POL-006 §4", "KYC-POL-004 §7"]}
+  ]
+}

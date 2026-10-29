@@ -84,7 +84,7 @@ Non-functional:
 | **Tool registry** | Each tool = Pydantic input model + Pydantic output model + pure function. JSON schema is generated for the model from the input model. Outputs are validated before anything is stored | `app/agent/tools/*` |
 | **Providers** | The external world behind each tool. Every provider has a `Mock*` twin driven by fixtures so the full flow runs offline | Document Intelligence SDK, screening list adapter, address adapter |
 | **Decision policy engine** | Deterministic gates that convert findings + risk into the final outcome. The model's recommendation can only make the outcome *stricter*, never more lenient | `app/policy/decision_policy.py` |
-| **Policy RAG** | KYC/CIP/CDD/EDD policies chunked by heading, embedded, hybrid (vector + keyword) retrieval with citations | local JSON index (dev) → Azure AI Search (cloud) |
+| **Policy RAG** | KYC/CIP/CDD/EDD policies chunked by heading, embedded, hybrid (vector + keyword) retrieval with citations; each policy declares its readers (`<!-- access: ... -->`) and every query is filtered to the roles of the person the agent acts for; quality gated by `eval/retrieval_golden.json` (hit rate, recall, MRR, zero access leaks) | local JSON index (dev, CI) → Azure AI Search free tier, keyless, optional semantic re-ranking (cloud) |
 | **Audit trail** | Append-only, hash-chained events per case | `AuditEvent` table, SHA-256 chain |
 | **Review queue** | Analyst UI: queue, case detail (documents, findings, risk with citations, tool timeline, audit), actions | React 18 + Vite + TypeScript + Tailwind |
 | **Eval harness** | Golden cases → run → score decisions/findings/risk → markdown + JSON report | `eval/run_eval.py` |
