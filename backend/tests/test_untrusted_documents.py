@@ -115,3 +115,28 @@ def test_shield_outage_fails_closed(client, monkeypatch):
     finally:
         get_settings().content_safety_endpoint = None
     assert body["case"]["outcome"] == "needs_review" and body["run"]["gate"] == "GATE_INJECTION_CHECK_UNAVAILABLE"
+
+
+def test_full_ocr_text_is_scanned_but_not_sent_to_the_model():
+    page = "Harborline Energy statement. " * 40  # a real page is long: length alone must not flag it
+    assert untrusted.heuristic_scan({"_text": page}) == []
+    assert "override_instructions:_text" in untrusted.heuristic_scan({"_text": page + INJECTED})
+    out = {"documents": [{"fields": {"_text": page, "full_name": "Daniel Okafor"}}]}
+    view = untrusted.redact_for_model("extract_document", out)["documents"][0]["fields"]
+    assert view["_text"].startswith("[full document text not shown") and view["full_name"] == "Daniel Okafor"
+
+
+def test_rerun_of_a_demo_case_uses_fixtures_for_documents_without_an_image(monkeypatch):
+    from app.models import Document
+    from app.providers import extraction
+    s = get_settings()
+    s.doc_intel_endpoint = "https://di.example.cognitiveservices.azure.com/"
+    monkeypatch.setattr(extraction.AzureDocumentIntelligenceProvider, "__init__", lambda self, st: None)
+    doc = Document(case_id="c", doc_type="utility_bill", filename="bill.pdf", mock_extraction={"fields": {"full_name": "A"}, "confidence": 0.9})
+    try:
+        res = extraction.AzureDocumentIntelligenceProvider(s).extract(doc)
+        assert res["fields"]["full_name"] == "A"
+        s.env = "prod"  # never in production: a caller must not be able to supply its own "extraction"
+        assert extraction.AzureDocumentIntelligenceProvider(s).extract(doc)["error"] == "blob not found"
+    finally:
+        s.env, s.doc_intel_endpoint = "dev", None
