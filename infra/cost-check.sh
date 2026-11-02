@@ -20,8 +20,10 @@ echo "   minReplicas: $MIN   running replicas now: ${RUNNING:-0}"
 
 echo "== Azure SQL"
 SQL_SERVER=$(az sql server list -g "$RG" --query "[0].name" -o tsv)
-az sql db show -g "$RG" -s "$SQL_SERVER" -n onboardiq --query "{status:status,autoPauseMinutes:autoPauseDelay}" -o table
-echo "   (Online right after you used the app is normal; it should be Paused about an hour after the last request)"
+az sql db show -g "$RG" -s "$SQL_SERVER" -n onboardiq \
+  --query "{status:status,autoPauseMinutes:autoPauseDelay,freeOffer:useFreeLimit,whenFreeRunsOut:freeLimitExhaustionBehavior}" -o table
+echo "   (Online right after you used the app is normal; it should be Paused soon after the last request."
+echo "    freeOffer True + AutoPause = the database cannot cost anything: it pauses when the monthly allowance is used.)"
 
 echo "== Month-to-date cost for $RG, by service"
 BODY='{"type":"ActualCost","timeframe":"MonthToDate","dataset":{"granularity":"None",

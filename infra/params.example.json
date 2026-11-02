@@ -35,6 +35,9 @@
     "deploySql": {
       "value": true
     },
+    "sqlFreeOffer": {
+      "value": true
+    },
     "minReplicas": {
       "value": 0
     },

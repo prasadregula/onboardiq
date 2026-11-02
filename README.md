@@ -78,7 +78,7 @@ flowchart TD
 
 More diagrams (request sequence, identity map, decision gates, trust boundaries, deployment pipeline): **[docs/DIAGRAMS.md](docs/DIAGRAMS.md)**.
 
-Azure services: Container Apps, Azure SQL (serverless), Blob Storage, Document Intelligence, Azure OpenAI, Azure AI Search (shared free tier, index-scoped access), Azure AI Content Safety, Key Vault (break-glass only), Application Insights. Everything is passwordless: managed identities for every service and Entra tokens for SQL.
+Azure services: Container Apps, Azure SQL (serverless, on the free offer), Blob Storage, Document Intelligence, Azure OpenAI, Azure AI Search (shared free tier, index-scoped access), Azure AI Content Safety, Key Vault (break-glass only), Application Insights. Everything is passwordless: managed identities for every service and Entra tokens for SQL.
 
 ## Security and governance controls
 

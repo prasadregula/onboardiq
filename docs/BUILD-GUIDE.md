@@ -178,7 +178,7 @@ Full detail is in `docs/DEPLOY.md`; this is the order.
 6. **Review queue on Static Web Apps**: `npm run build`, `swa deploy ./dist`, add the SWA origin to `corsOrigins` in `infra/params.dev.json` and to the SPA redirect URIs, run `deploy.sh` again.
 7. **Seed cloud data**: with `ONBOARDIQ_AUTH_MODE` on the API being entra, run `seed.py` against the cloud DB is not possible from a laptop; instead post golden cases with the bearer token (A10 with `-H "Authorization: Bearer $TOKEN"` instead of the API key).
 
-Cost at rest: ~$10–20/month (SQL auto-pauses, Container App scales to zero). Per case: pennies.
+Cost at rest: about $5–8/month, mostly Container Registry Basic (SQL is on the free offer, the Container App scales to zero). Per case: pennies.
 
 ---
 

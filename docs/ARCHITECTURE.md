@@ -222,7 +222,7 @@ Output: `eval/reports/<timestamp>.md` + `.json`. CI gate: outcome accuracy must 
 | Document Intelligence | `di-onboardiq-dev` (S0) | `prebuilt-idDocument`, `prebuilt-read`, `prebuilt-layout` |
 | Azure AI Search | `srch-onboardiq-dev` (Basic) | policy index; optional in dev (local index works) |
 | Storage | `stonboardiqdev` | `documents` container (private, SSE, soft delete) |
-| Azure SQL | `sql-onboardiq-dev / onboardiq` | serverless; SQLite in local dev |
+| Azure SQL | `sql-onboardiq-dev / onboardiq` | serverless on the free offer (pauses instead of billing when the monthly allowance runs out); SQLite in local dev |
 | Container Apps | `ca-onboardiq-api` | managed identity → OpenAI (`Cognitive Services OpenAI User`), DI (`Cognitive Services User`), Storage (`Blob Data Contributor`), Search (`Index Data Reader`) |
 | Static Web App | `swa-onboardiq-review` | review queue |
 | Key Vault | `kv-onboardiq-dev` | screening vendor keys, API key |

@@ -59,6 +59,22 @@ if [ -z "$(az role assignment list --assignee "$PULL_PRINCIPAL" --role AcrPull -
 fi
 OPENAI_ID=$(az cognitiveservices account show -n "$OPENAI_NAME" -g "$OPENAI_RG" --query id -o tsv)
 
+# Cost guard: the SQL free offer can only be applied when the database is created. If a paid database already exists,
+# Bicep would fail trying to convert it, so stop first and explain (the data is the fictional demo set: Reset demo data
+# reloads it).
+SQL_FREE=$(jq -r '.parameters.sqlFreeOffer.value // true' "$PARAMS")
+SQL_SERVER=$(az sql server list -g "$RG" --query "[0].name" -o tsv 2>/dev/null || true)
+if [ "$SQL_FREE" = "true" ] && [ -n "$SQL_SERVER" ]; then
+  DB_FREE=$(az sql db show -g "$RG" -s "$SQL_SERVER" -n onboardiq --query useFreeLimit -o tsv 2>/dev/null || echo none)
+  if [ "$DB_FREE" != "none" ] && [ "$DB_FREE" != "true" ]; then
+    echo "STOP: database 'onboardiq' on $SQL_SERVER is a PAID serverless database and cannot be converted to the free offer." >&2
+    echo "  It holds only fictional demo data. Delete it, then run ./deploy.sh again (it is recreated on the free offer):" >&2
+    echo "    az sql db delete -g $RG -s $SQL_SERVER -n onboardiq --yes" >&2
+    echo "  Or keep paying for it: set sqlFreeOffer to false in $PARAMS." >&2
+    exit 1
+  fi
+fi
+
 az deployment group create -g "$RG" -f main.bicep -p "@$PARAMS" \
   -p apiImage="$IMAGE" acrLoginServer="$ACR.azurecr.io" pullIdentityId="$PULL_ID" \
      openAiResourceId="$OPENAI_ID" entraApiClientId="$ENTRA_API_CLIENT_ID" \
@@ -148,7 +164,7 @@ echo "API:            $(jq -r .apiUrl.value outputs.json)"
 echo "API identity:   $API_NAME ($PRINCIPAL)"
 echo "SQL server:     $(jq -r .sqlServerFqdn.value outputs.json)"
 echo
-echo "COST: minReplicas=$MIN_REPLICAS (scales to zero), SQL auto-pauses after 60 min idle, logs capped at $(jq -r '.parameters.logDailyCapGb.value // "0.5"' "$PARAMS") GB/day."
+echo "COST: minReplicas=$MIN_REPLICAS (scales to zero), SQL $( [ "$SQL_FREE" = "true" ] && echo "on the free offer (pauses after 15 min idle, and for the rest of the month if the free allowance runs out)" || echo "auto-pauses after 60 min idle"), logs capped at $(jq -r '.parameters.logDailyCapGb.value // "0.5"' "$PARAMS") GB/day."
 echo "      Check any time with: ./cost-check.sh"
 echo
 echo "NEXT (first deployment only - skip these on a redeploy):"

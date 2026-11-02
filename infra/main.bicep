@@ -37,6 +37,8 @@ param searchSku string = 'free'
 param searchSemantic string = 'free'
 @description('Deploy Azure SQL serverless (else the API uses SQLite on an ephemeral volume - dev only)')
 param deploySql bool = true
+@description('Use the Azure SQL Database free offer (100,000 vCore-seconds, 32 GB per month, per subscription, for life) and pause the database when the monthly allowance runs out instead of billing. Applies only when the database is CREATED: an existing paid database cannot be converted (deploy.sh stops and explains)')
+param sqlFreeOffer bool = true
 @secure()
 param sqlAdminPassword string = ''
 @description('Entra admin for SQL (object id + login), lets the Container App managed identity sign in with an Entra token')
@@ -124,13 +126,18 @@ resource sqlServer 'Microsoft.Sql/servers@2023-05-01-preview' = if (deploySql) {
   }
 }
 
-resource sqlDb 'Microsoft.Sql/servers/databases@2023-05-01-preview' = if (deploySql) {
+// Serverless General Purpose, 1 vCore max. With the free offer the database costs nothing: compute comes out of the
+// monthly free allowance (about 55 hours at 0.5 vCore), it auto-pauses after 15 idle minutes (fixed by the offer), and
+// when the allowance is used up it PAUSES until the 1st of next month instead of billing (cost cannot run away).
+resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = if (deploySql) {
   parent: sqlServer
   name: 'onboardiq'
   location: location
   tags: tags
   sku: { name: 'GP_S_Gen5', tier: 'GeneralPurpose', family: 'Gen5', capacity: 1 }
-  properties: { autoPauseDelay: 60, minCapacity: json('0.5'), maxSizeBytes: 34359738368, zoneRedundant: false }
+  properties: union({ minCapacity: json('0.5'), maxSizeBytes: 34359738368, zoneRedundant: false },
+    sqlFreeOffer ? { useFreeLimit: true, freeLimitExhaustionBehavior: 'AutoPause' }
+                 : { autoPauseDelay: 60 })
 }
 
 resource sqlFwAzure 'Microsoft.Sql/servers/firewallRules@2023-05-01-preview' = if (deploySql) {
