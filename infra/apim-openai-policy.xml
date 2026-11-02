@@ -1,0 +1,49 @@
+<!--
+  OnboardIQ AI gateway policy (Azure API Management, Consumption tier). Applied to the "openai" API.
+  Placeholders (double-underscore names) are filled in by main.bicep.
+
+  1. Who may call: only the orchestrator and risk agent managed identities. Their own Entra token is validated here
+     (tenant, audience, client id); anything else gets 401 before a model is touched.
+  2. Who calls the model: the gateway's own managed identity. The agents' Azure OpenAI roles are revoked, so the
+     gateway is the only path to the model (one place to enforce, observe and switch models).
+  3. What is recorded: token usage per agent as an Application Insights metric (namespace onboardiq-llm).
+     Request and response BODIES are not logged (they can contain applicant data).
+-->
+<policies>
+  <inbound>
+    <base />
+    <validate-azure-ad-token tenant-id="__TENANT_ID__" header-name="Authorization"
+                             failed-validation-httpcode="401"
+                             failed-validation-error-message="Only OnboardIQ agent identities may call this model gateway.">
+      <client-application-ids>
+        <application-id>__ORCHESTRATOR_APPID__</application-id>
+        <application-id>__RISK_APPID__</application-id>
+      </client-application-ids>
+      <audiences>
+        <audience>https://cognitiveservices.azure.com</audience>
+      </audiences>
+    </validate-azure-ad-token>
+    <set-variable name="agent" value="@{
+        var jwt = context.Request.Headers.GetValueOrDefault(&quot;Authorization&quot;, &quot;&quot;).Split(' ').Last().AsJwt();
+        var id = jwt?.Claims.GetValueOrDefault(&quot;appid&quot;, jwt?.Claims.GetValueOrDefault(&quot;azp&quot;, &quot;&quot;)) ?? &quot;&quot;;
+        return id == &quot;__ORCHESTRATOR_APPID__&quot; ? &quot;orchestrator&quot; : id == &quot;__RISK_APPID__&quot; ? &quot;risk&quot; : &quot;unknown&quot;;
+    }" />
+    <authentication-managed-identity resource="https://cognitiveservices.azure.com" />
+    <llm-emit-token-metric namespace="onboardiq-llm">
+      <dimension name="agent" value="@((string)context.Variables[&quot;agent&quot;])" />
+      <dimension name="API ID" />
+    </llm-emit-token-metric>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+    <set-header name="x-onboardiq-gateway" exists-action="override">
+      <value>@((string)context.Variables["agent"])</value>
+    </set-header>
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

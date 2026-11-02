@@ -24,6 +24,7 @@ def health() -> dict:
     return {"ok": True, "env": s.env, "auth_mode": s.auth_mode, "orchestrator_mode": s.orchestrator_mode, "run_async": s.run_async,
             "llm": get_llm().name, "llm_ready": s.llm_ready, "chat_model": getattr(get_llm(), "chat_deployment", None),
             "embedding_model": getattr(get_llm(), "embedding_deployment", None),
+            "llm_route": f"gateway:{s.llm_gateway}" if s.llm_gateway else "direct",
             "extraction_provider": s.extraction_provider, "screening_provider": get_screening_provider().name,
             "screening_entries": len(get_screening_provider().entries), "storage": get_storage().name,
             "policy_index_version": getattr(get_policy_store(), "version", None),

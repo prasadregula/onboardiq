@@ -50,6 +50,10 @@ param deployContentSafety bool = true
 @description('Content Safety tier. F0 = free (limited calls/month, one free resource per subscription); use S0 if F0 is taken.')
 param contentSafetySku string = 'F0'
 
+@description('AI gateway: put Azure API Management (Consumption tier: no hourly charge, first 1M calls/month free) in front of Azure OpenAI. The agents call the gateway with their own identity; only the gateway can call the model.')
+param deployApim bool = false
+@description('Required by API Management when deployApim is true: email for service notifications (kept in the gitignored params file)')
+param apimPublisherEmail string = ''
 param minReplicas int = 0
 param maxReplicas int = 3
 @description('Daily cap on log ingestion (GB) so a log storm cannot run up a bill. -1 = no cap.')
@@ -127,7 +131,8 @@ resource sqlServer 'Microsoft.Sql/servers@2023-05-01-preview' = if (deploySql) {
 }
 
 // Serverless General Purpose, 1 vCore max. With the free offer the database costs nothing: compute comes out of the
-// monthly free allowance (about 55 hours at 0.5 vCore), it auto-pauses after 15 idle minutes (fixed by the offer), and
+// monthly free allowance (about 55 hours at 0.5 vCore), it auto-pauses when idle (the offer fixes the delay: setting
+// autoPauseDelay is rejected with ProvisioningDisabled), and
 // when the allowance is used up it PAUSES until the 1st of next month instead of billing (cost cannot run away).
 resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = if (deploySql) {
   parent: sqlServer
@@ -233,7 +238,8 @@ var commonEnv = [
   { name: 'ONBOARDIQ_STORAGE_ACCOUNT_URL', value: storage.properties.primaryEndpoints.blob }
   { name: 'ONBOARDIQ_ORCHESTRATOR_MODE', value: 'llm' }
   { name: 'ONBOARDIQ_LLM_PROVIDER', value: 'azure' }
-  { name: 'ONBOARDIQ_AZURE_OPENAI_ENDPOINT', value: openAiEndpoint }
+  { name: 'ONBOARDIQ_AZURE_OPENAI_ENDPOINT', value: deployApim ? apim!.properties.gatewayUrl : openAiEndpoint }
+  { name: 'ONBOARDIQ_LLM_GATEWAY', value: deployApim ? 'apim' : '' }
   { name: 'ONBOARDIQ_AZURE_OPENAI_CHAT_DEPLOYMENT', value: chatDeployment }
   { name: 'ONBOARDIQ_AZURE_OPENAI_EMBEDDING_DEPLOYMENT', value: embeddingDeployment }
   { name: 'ONBOARDIQ_EXTRACTION_PROVIDER', value: 'azure' }
@@ -403,3 +409,74 @@ output orchestratorPrincipalId string = agentId[0].properties.principalId
 output riskPrincipalId string = agentId[3].properties.principalId
 output docIntelId string = docIntel.id
 output oboPrincipalId string = oboId.properties.principalId
+
+// ------------------------------------------------------------------------------------------ AI gateway (optional)
+// Azure API Management, Consumption tier. Agents call https://<apim>.azure-api.net/openai/... with their own managed
+// identity token; the policy (apim-openai-policy.xml) admits only the orchestrator and risk agents, swaps in the
+// gateway's identity for the call to Azure OpenAI and records token usage per agent. deploy.sh grants the gateway
+// identity on Azure OpenAI (cross resource group) and revokes the agents' direct access.
+var openAiBase = endsWith(openAiEndpoint, '/') ? openAiEndpoint : '${openAiEndpoint}/'
+
+resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' = if (deployApim) {
+  name: 'apim-${name}-${take(suffix, 5)}'
+  location: location
+  tags: tags
+  sku: { name: 'Consumption', capacity: 0 }
+  identity: { type: 'SystemAssigned' }
+  properties: { publisherEmail: apimPublisherEmail, publisherName: 'OnboardIQ' }
+}
+
+resource apimLogger 'Microsoft.ApiManagement/service/loggers@2023-09-01-preview' = if (deployApim) {
+  parent: apim
+  name: 'appi'
+  properties: { loggerType: 'applicationInsights', credentials: { connectionString: appi.properties.ConnectionString } }
+}
+
+resource apimOpenAi 'Microsoft.ApiManagement/service/apis@2023-09-01-preview' = if (deployApim) {
+  parent: apim
+  name: 'openai'
+  properties: {
+    displayName: 'Azure OpenAI (OnboardIQ agents)'
+    path: 'openai'
+    protocols: [ 'https' ]
+    serviceUrl: '${openAiBase}openai'
+    subscriptionRequired: false   // callers authenticate with Entra tokens, validated by the policy (no keys)
+  }
+}
+
+resource apimOpPost 'Microsoft.ApiManagement/service/apis/operations@2023-09-01-preview' = if (deployApim) {
+  parent: apimOpenAi
+  name: 'post-any'
+  properties: { displayName: 'POST (chat completions, embeddings)', method: 'POST', urlTemplate: '/*' }
+}
+
+resource apimPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-09-01-preview' = if (deployApim) {
+  parent: apimOpenAi
+  name: 'policy'
+  properties: {
+    format: 'rawxml'
+    value: replace(replace(replace(loadTextContent('apim-openai-policy.xml'),
+      '__TENANT_ID__', entraTenantId),
+      '__ORCHESTRATOR_APPID__', agentId[0].properties.clientId),
+      '__RISK_APPID__', agentId[3].properties.clientId)
+  }
+}
+
+// Application Insights logging for the gateway: request metadata and the per-agent token metric. No bodies.
+resource apimDiag 'Microsoft.ApiManagement/service/apis/diagnostics@2023-09-01-preview' = if (deployApim) {
+  parent: apimOpenAi
+  name: 'applicationinsights'
+  properties: {
+    loggerId: apimLogger.id
+    alwaysLog: 'allErrors'
+    sampling: { samplingType: 'fixed', percentage: 100 }
+    metrics: true
+    verbosity: 'information'
+    frontend: { request: { body: { bytes: 0 } }, response: { body: { bytes: 0 } } }
+    backend: { request: { body: { bytes: 0 } }, response: { body: { bytes: 0 } } }
+  }
+}
+
+output apimName string = deployApim ? apim.name : ''
+output apimGatewayUrl string = deployApim ? apim!.properties.gatewayUrl : ''
+output apimPrincipalId string = deployApim ? apim!.identity.principalId : ''

@@ -23,6 +23,9 @@ if [ "$MIN_REPLICAS" != "0" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
 SEARCH_SKU=$(jq -r '.parameters.searchSku.value // "free"' "$PARAMS")
 if [ "$(jq -r '.parameters.deploySearch.value // false' "$PARAMS")" = "true" ] && [ "$SEARCH_SKU" != "free" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
   echo "STOP: searchSku=$SEARCH_SKU is a paid Azure AI Search tier (Basic is about US\$75/month). Use \"free\" or run with ALLOW_ALWAYS_ON=1 if intended." >&2; exit 1; fi
+if [ "$(jq -r '.parameters.deployApim.value // false' "$PARAMS")" = "true" ] && \
+   [ -z "$(jq -r '.parameters.apimPublisherEmail.value // empty' "$PARAMS")" ]; then
+  echo "STOP: deployApim=true needs apimPublisherEmail in $PARAMS (API Management requires a notification email)." >&2; exit 1; fi
 : "${ENTRA_API_CLIENT_ID:?set ENTRA_API_CLIENT_ID to the OnboardIQ-API app registration client id}"
 SQL_PASSWORD=${SQL_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)Aa1!}
 ME_OID=$(az ad signed-in-user show --query id -o tsv)
@@ -90,9 +93,25 @@ KV=$(jq -r .keyVault.value outputs.json)
 ORCH_PRINCIPAL=$(jq -r .orchestratorPrincipalId.value outputs.json)
 RISK_PRINCIPAL=$(jq -r .riskPrincipalId.value outputs.json)
 DI_ID=$(jq -r .docIntelId.value outputs.json)
-echo "Granting Azure OpenAI access to the orchestrator and risk agent identities..."
-grant_sp "$ORCH_PRINCIPAL" "Cognitive Services OpenAI User" "$OPENAI_ID"
-grant_sp "$RISK_PRINCIPAL" "Cognitive Services OpenAI User" "$OPENAI_ID"
+revoke_sp() { local oid=$1 role=$2 scope=$3 label=$4
+  if [ -n "$(az role assignment list --assignee "$oid" --role "$role" --scope "$scope" --query '[0].id' -o tsv)" ]; then
+    az role assignment delete --assignee "$oid" --role "$role" --scope "$scope" -o none && echo "  revoked '$role' from $label"
+  fi; }
+APIM_PRINCIPAL=$(jq -r '.apimPrincipalId.value // empty' outputs.json)
+if [ -n "$APIM_PRINCIPAL" ]; then
+  # AI gateway (w5): ONLY the gateway's identity may call Azure OpenAI. The agents authenticate to the gateway with
+  # their own identity (checked by the gateway policy) and lose direct access, so the gateway cannot be bypassed.
+  echo "AI gateway $(jq -r .apimName.value outputs.json): granting it Azure OpenAI access, revoking the agents' direct access..."
+  retry az ad sp show --id "$APIM_PRINCIPAL" -o none
+  grant_sp "$APIM_PRINCIPAL" "Cognitive Services OpenAI User" "$OPENAI_ID"
+  revoke_sp "$ORCH_PRINCIPAL" "Cognitive Services OpenAI User" "$OPENAI_ID" "the orchestrator agent (now via the gateway)"
+  revoke_sp "$RISK_PRINCIPAL" "Cognitive Services OpenAI User" "$OPENAI_ID" "the risk agent (now via the gateway)"
+  echo "  (role changes take a few minutes to apply: model calls can fail with 401/403 until then, and those runs go to an analyst)"
+else
+  echo "Granting Azure OpenAI access to the orchestrator and risk agent identities (direct, no gateway)..."
+  grant_sp "$ORCH_PRINCIPAL" "Cognitive Services OpenAI User" "$OPENAI_ID"
+  grant_sp "$RISK_PRINCIPAL" "Cognitive Services OpenAI User" "$OPENAI_ID"
+fi
 # Revoke what the API's own identity no longer needs (earlier drops granted it OpenAI + Document Intelligence)
 for pair in "Cognitive Services OpenAI User|$OPENAI_ID" "Cognitive Services User|$DI_ID"; do
   role=${pair%%|*}; scope=${pair#*|}
@@ -164,7 +183,7 @@ echo "API:            $(jq -r .apiUrl.value outputs.json)"
 echo "API identity:   $API_NAME ($PRINCIPAL)"
 echo "SQL server:     $(jq -r .sqlServerFqdn.value outputs.json)"
 echo
-echo "COST: minReplicas=$MIN_REPLICAS (scales to zero), SQL $( [ "$SQL_FREE" = "true" ] && echo "on the free offer (pauses after 15 min idle, and for the rest of the month if the free allowance runs out)" || echo "auto-pauses after 60 min idle"), logs capped at $(jq -r '.parameters.logDailyCapGb.value // "0.5"' "$PARAMS") GB/day."
+echo "COST: minReplicas=$MIN_REPLICAS (scales to zero), SQL $( [ "$SQL_FREE" = "true" ] && echo "on the free offer (pauses after 60 min idle, and for the rest of the month if the free allowance runs out)" || echo "auto-pauses after 60 min idle"), logs capped at $(jq -r '.parameters.logDailyCapGb.value // "0.5"' "$PARAMS") GB/day."
 echo "      Check any time with: ./cost-check.sh"
 echo
 echo "NEXT (first deployment only - skip these on a redeploy):"

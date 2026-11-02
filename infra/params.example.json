@@ -38,6 +38,12 @@
     "sqlFreeOffer": {
       "value": true
     },
+    "deployApim": {
+      "value": false
+    },
+    "apimPublisherEmail": {
+      "value": ""
+    },
     "minReplicas": {
       "value": 0
     },

@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # one shown on the deployment's page in the Foundry portal (ONBOARDIQ_AZURE_OPENAI_API_VERSION)
     azure_openai_chat_deployment: str = "gpt-4.1-mini"
     azure_openai_embedding_deployment: str = "text-embedding-3-small"
+    # Set when ONBOARDIQ_AZURE_OPENAI_ENDPOINT points at an AI gateway (Azure API Management) instead of the model
+    # resource. Informational (shown in /health); the gateway itself enforces who may call the model.
+    llm_gateway: str | None = None
 
     # Azure Document Intelligence
     doc_intel_endpoint: str | None = None

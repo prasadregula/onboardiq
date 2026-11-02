@@ -54,9 +54,28 @@ Then add the SWA origin (`https://<host>.azurestaticapps.net`) to `corsOrigins` 
 - **Scaling**: min 0 / max 2 replicas in dev; agent runs are background tasks inside the API replica, so set `minReplicas: 1` in prod (a scale-to-zero replica dying mid-run leaves the case in `processing` — the `/run` endpoint rejects a second run until an operator resets it; a stuck-run sweeper is on the drop-3 list).
 - **Migrations**: run at startup (`alembic upgrade head`) — Alembic takes a lock, safe with 2 workers. Schema changes = new revision via `alembic revision --autogenerate` locally (CI checks `alembic check`).
 - **Data retention**: blob soft-delete 30 days; audit events are append-only. Purging a case is intentionally not an API.
-- **Cost**: a few US cents a day when idle (Container Registry Basic and storage); the API scales to zero and SQL runs on the free offer (100,000 vCore-seconds a month, auto-pause after 15 idle minutes, and paused rather than billed if the allowance runs out), so SQL costs nothing. Pennies per case for the models. Enabling `deploySearch` adds about US$75/month.
+- **Cost**: a few US cents a day when idle (Container Registry Basic and storage); the API scales to zero and SQL runs on the free offer (100,000 vCore-seconds a month, auto-pause after 60 idle minutes, and paused rather than billed if the allowance runs out), so SQL costs nothing. Pennies per case for the models. Enabling `deploySearch` adds about US$75/month.
 - **Cost guardrails**: `deploy.sh` refuses `minReplicas > 0` or `deploySearch=true` unless `ALLOW_ALWAYS_ON=1`; Log Analytics ingestion is capped (`logDailyCapGb`, default 0.5 GB/day); set `BUDGET_EMAIL` in `.deploy.env` for a monthly budget alert (50/80/100% actual, 100% forecast); run `infra/cost-check.sh` any time (read-only, does not wake SQL) for replica count, SQL status and month-to-date cost by service.
 - **Lesson**: health and readiness probes must never touch a paid back end. A readiness probe that queried SQL every 10 seconds kept serverless SQL awake around the clock (about US$1.50 to US$19 a day) until `/ready` was changed to check only the process.
+
+## 5a. AI gateway (optional, Azure API Management Consumption)
+Set `"deployApim": {"value": true}` and `"apimPublisherEmail": {"value": "<your email>"}` in `params.dev.json`, then
+`./deploy.sh`. Consumption has no hourly charge and the first 1 million calls a month are free.
+
+- **What changes:** the API's `ONBOARDIQ_AZURE_OPENAI_ENDPOINT` becomes the gateway URL; the gateway identity gets
+  *Cognitive Services OpenAI User* on Azure OpenAI and the orchestrator and risk agents lose it. `/health` shows
+  `"llm_route": "gateway:apim"`.
+- **Check it is enforced:** a token from any other identity gets `401` at the gateway, and the agents can no longer
+  call Azure OpenAI directly (`403`).
+- **Token usage per agent** (Application Insights → Logs):
+  ```kusto
+  customMetrics
+  | where timestamp > ago(1d) and name has "Tokens"
+  | summarize tokens = sum(valueSum) by name, agent = tostring(customDimensions.agent), bin(timestamp, 1h)
+  ```
+- **Per-agent token limits** (`llm-token-limit`) need the Developer tier or higher (hourly billing); not deployed here.
+- **Turning it off:** set `deployApim` to false and deploy; the agents get their direct roles back. The API Management
+  instance stays until you delete it (deleted instances are kept 48 h and the name stays reserved).
 
 ## 6. Rollback
 `az containerapp revision list` → `az containerapp ingress traffic set --revision-weight <previous>=100`. Migrations are forward-only; keep them additive.
