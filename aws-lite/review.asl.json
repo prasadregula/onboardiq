@@ -1,0 +1,37 @@
+{
+  "Comment": "OnboardIQ-lite review: auto-approved cases finish at once; every other outcome waits for an analyst (no cost while waiting).",
+  "StartAt": "Route",
+  "States": {
+    "Route": {
+      "Type": "Choice",
+      "Choices": [{"Variable": "$.outcome", "StringEquals": "auto_approve", "Next": "Approved"}],
+      "Default": "AwaitAnalyst"
+    },
+    "AwaitAnalyst": {
+      "Type": "Task",
+      "Comment": "Parks the case: the agent function stores this task token; review.sh resumes it.",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "__FUNCTION_ARN__",
+        "Payload": {
+          "action": "register_review",
+          "case_id.$": "$.case_id",
+          "run_id.$": "$.run_id",
+          "outcome.$": "$.outcome",
+          "gate.$": "$.gate",
+          "taskToken.$": "$$.Task.Token"
+        }
+      },
+      "ResultPath": "$.review",
+      "TimeoutSeconds": 604800,
+      "Next": "AnalystDecision"
+    },
+    "AnalystDecision": {
+      "Type": "Choice",
+      "Choices": [{"Variable": "$.review.decision", "StringEquals": "approve", "Next": "Approved"}],
+      "Default": "Rejected"
+    },
+    "Approved": {"Type": "Succeed"},
+    "Rejected": {"Type": "Succeed", "Comment": "Rejected by the analyst; the reason is in the audit chain."}
+  }
+}
