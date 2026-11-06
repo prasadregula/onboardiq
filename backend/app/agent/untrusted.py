@@ -118,12 +118,14 @@ def redact_for_model(tool: str, out: dict) -> dict:
     return out
 
 
-def tool_message(tool: str, out: dict | None, err: str | None) -> str:
-    """Content of the tool message sent back to the model. Document-derived text is wrapped in Azure's document
-    delimiter so both the model (system-prompt rule) and Prompt Shields treat it as data."""
+def tool_message(tool: str, out: dict | None, err: str | None, view=None) -> str:
+    """Content of the tool message sent back to the model. Identifiers are cut to their last 4 characters, personal
+    data is tokenised by `view` (the run's Pseudonymizer, T-07), and document-derived text is wrapped in Azure's
+    document delimiter so both the model (system-prompt rule) and Prompt Shields treat it as data."""
+    view = view or (lambda x: x)
     if err:
-        return json.dumps({"error": err}, default=str)[:60_000]
-    body = json.dumps(redact_for_model(tool, out or {}), default=str)[:60_000]
+        return json.dumps(view({"error": err}), default=str)[:60_000]
+    body = json.dumps(view(redact_for_model(tool, out or {})), default=str)[:60_000]
     if tool == "extract_document":
         return f'""" <documents>\n{body}\n</documents> """'
     return body

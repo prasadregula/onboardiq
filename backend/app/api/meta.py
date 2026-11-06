@@ -30,7 +30,8 @@ def health() -> dict:
             "policy_index_version": getattr(get_policy_store(), "version", None),
             "policy_store": getattr(get_policy_store(), "name", None), "tracing": bool(s.applicationinsights_connection_string),
             "agent_identities": identity.configured(),
-            "injection_shield": "prompt_shields+patterns" if s.content_safety_endpoint else "patterns"}
+            "injection_shield": "prompt_shields+patterns" if s.content_safety_endpoint else "patterns",
+            "pii_masking": "pseudonymise+azure-language" if s.pii_endpoint else "pseudonymise"}
 
 
 @router.get("/ready")

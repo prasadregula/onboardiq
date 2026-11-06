@@ -38,6 +38,12 @@
     "sqlFreeOffer": {
       "value": true
     },
+    "deployLanguage": {
+      "value": true
+    },
+    "languageSku": {
+      "value": "F0"
+    },
     "deployApim": {
       "value": false
     },

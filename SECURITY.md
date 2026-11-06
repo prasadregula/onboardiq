@@ -9,7 +9,7 @@ Please do not open a public issue for a security problem. Use GitHub's **private
 ## Data
 
 - All applicants, documents and watchlist entries in this repository are **fictional**.
-- The deployed environment processes fictional golden cases only. Real personal data is out of scope until PII minimisation before model calls (threat T-07) is complete.
+- The deployed environment processes fictional golden cases only. Personal data is tokenised before every model call (threat T-07, mitigated), but the dev environment uses public endpoints and is not a place for real personal data; see `docs/THREATMODEL.md`.
 - Real OFAC sanctions lists are public data and are used only to screen fictional names.
 
 ## Secrets and configuration

@@ -23,6 +23,17 @@ if [ "$MIN_REPLICAS" != "0" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
 SEARCH_SKU=$(jq -r '.parameters.searchSku.value // "free"' "$PARAMS")
 if [ "$(jq -r '.parameters.deploySearch.value // false' "$PARAMS")" = "true" ] && [ "$SEARCH_SKU" != "free" ] && [ "${ALLOW_ALWAYS_ON:-0}" != "1" ]; then
   echo "STOP: searchSku=$SEARCH_SKU is a paid Azure AI Search tier (Basic is about US\$75/month). Use \"free\" or run with ALLOW_ALWAYS_ON=1 if intended." >&2; exit 1; fi
+# One free (F0) Language resource per subscription: if another app already uses it, stop with a clear message instead
+# of a failed deployment half way through.
+if [ "$(jq -r '.parameters.deployLanguage.value // true' "$PARAMS")" = "true" ] && \
+   [ "$(jq -r '.parameters.languageSku.value // "F0"' "$PARAMS")" = "F0" ]; then
+  OTHER_F0=$(az cognitiveservices account list --query "[?kind=='TextAnalytics' && sku.name=='F0' && name!='lang-onboardiq-${RG##*-}'].name | [0]" -o tsv 2>/dev/null || true)
+  if [ -n "$OTHER_F0" ]; then
+    echo "STOP: the subscription's one free Language resource is already used by '$OTHER_F0'." >&2
+    echo "  Set \"languageSku\": {\"value\": \"S\"} in $PARAMS (pay per use, about US\$1 per 1,000 text records)," >&2
+    echo "  or \"deployLanguage\": {\"value\": false} to keep deterministic masking only." >&2; exit 1
+  fi
+fi
 if [ "$(jq -r '.parameters.deployApim.value // false' "$PARAMS")" = "true" ] && \
    [ -z "$(jq -r '.parameters.apimPublisherEmail.value // empty' "$PARAMS")" ]; then
   echo "STOP: deployApim=true needs apimPublisherEmail in $PARAMS (API Management requires a notification email)." >&2; exit 1; fi
@@ -183,7 +194,7 @@ echo "API:            $(jq -r .apiUrl.value outputs.json)"
 echo "API identity:   $API_NAME ($PRINCIPAL)"
 echo "SQL server:     $(jq -r .sqlServerFqdn.value outputs.json)"
 echo
-echo "COST: minReplicas=$MIN_REPLICAS (scales to zero), SQL $( [ "$SQL_FREE" = "true" ] && echo "on the free offer (pauses after 60 min idle, and for the rest of the month if the free allowance runs out)" || echo "auto-pauses after 60 min idle"), logs capped at $(jq -r '.parameters.logDailyCapGb.value // "0.5"' "$PARAMS") GB/day."
+echo "COST: minReplicas=$MIN_REPLICAS (scales to zero), SQL $( [ "$SQL_FREE" = "true" ] && echo "on the free offer (pauses after 60 min idle, and for the rest of the month if the free allowance runs out)" || echo "auto-pauses after 60 min idle"), PII masking on (Language $(jq -r '.parameters.languageSku.value // "F0"' "$PARAMS")), logs capped at $(jq -r '.parameters.logDailyCapGb.value // "0.5"' "$PARAMS") GB/day."
 echo "      Check any time with: ./cost-check.sh"
 echo
 echo "NEXT (first deployment only - skip these on a redeploy):"

@@ -32,6 +32,18 @@ class RunContext:
     tools_failed: set[str] = field(default_factory=set)  # attempted but errored (e.g. identity lost its role)
     budget: Any = None  # control.RunBudget - hard per-run limits (w4-3)
     usage: Any = None   # llm.Usage collected for this run, read by the budget check
+    pii: Any = None     # agent.pii.Pseudonymizer: what the model sees has personal data tokenised (T-07)
+
+    def model_view(self, obj: Any) -> Any:
+        """A copy of obj safe to send to the model (personal data tokenised). Created on first use for the run."""
+        if self.pii is None:
+            from ..pii import Pseudonymizer
+            self.pii = Pseudonymizer.for_case(self)
+        return self.pii.minimise(obj)
+
+    def from_model(self, text: str | None) -> str | None:
+        """Text the model wrote, with its tokens turned back into real values for the analyst."""
+        return self.pii.reidentify(text) if self.pii is not None else text
 
     def parties(self) -> list[Party]:
         return list(self.session.exec(select(Party).where(Party.case_id == self.case.id)).all())

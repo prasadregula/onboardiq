@@ -51,10 +51,11 @@ def _case_brief(ctx: RunContext) -> str:
     c = ctx.case
     parties = [{"id": p.id, "role": p.role, "name": p.name, "dob": p.dob, "country": p.country_of_residence or p.nationality,
                 "ownership_pct": p.ownership_pct, "control_person": p.is_control_person} for p in ctx.parties()]
-    docs = [{"id": d.id, "type": d.doc_type, "party_id": d.party_id, "filename": d.filename} for d in ctx.documents()]
+    docs = [{"id": d.id, "type": d.doc_type, "party_id": d.party_id} for d in ctx.documents()]
     declared = {k: v for k, v in c.declared.items() if k not in ("id_number", "tin")}
-    return json.dumps({"case_id": c.id, "applicant_type": c.applicant_type.value, "declared": declared,
-                       "parties": parties, "documents": docs}, indent=1, default=str)
+    brief = {"case_id": c.id, "applicant_type": c.applicant_type.value, "declared": declared,
+             "parties": parties, "documents": docs}
+    return json.dumps(ctx.model_view(brief), indent=1, default=str)  # T-07: names, DOBs, addresses tokenised
 
 
 def _audit_tool(ctx: RunContext, name: str, args: dict, result: Any, error: str | None, ms: int) -> None:
@@ -165,11 +166,14 @@ def _run_llm(ctx: RunContext) -> dict:
             continue
         for tc in res.tool_calls:
             out, err = _call(ctx, tc["name"], tc["arguments"])
-            messages.append({"role": "tool", "tool_call_id": tc["id"], "content": tool_message(tc["name"], out, err)})
+            messages.append({"role": "tool", "tool_call_id": tc["id"],
+                             "content": tool_message(tc["name"], out, err, view=ctx.model_view)})
             if tc["name"] == "record_decision" and out:
                 decision = out
         if decision:
             break
+    if ctx.pii is not None:  # evidence of what was masked before the model saw it (counts only, no values)
+        audit.record(ctx.session, ctx.case.id, "agent", "model_view_minimised", dict(ctx.pii.stats), ctx.run.id)
     if decision is None:
         ctx.add_findings([Finding(code="AGENT_BUDGET_EXHAUSTED", severity="warning", source_tool="orchestrator",
                                   message=f"Agent did not reach a decision within {s.max_tool_calls} steps")])

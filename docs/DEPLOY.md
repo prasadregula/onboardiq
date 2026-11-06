@@ -58,6 +58,14 @@ Then add the SWA origin (`https://<host>.azurestaticapps.net`) to `corsOrigins` 
 - **Cost guardrails**: `deploy.sh` refuses `minReplicas > 0` or `deploySearch=true` unless `ALLOW_ALWAYS_ON=1`; Log Analytics ingestion is capped (`logDailyCapGb`, default 0.5 GB/day); set `BUDGET_EMAIL` in `.deploy.env` for a monthly budget alert (50/80/100% actual, 100% forecast); run `infra/cost-check.sh` any time (read-only, does not wake SQL) for replica count, SQL status and month-to-date cost by service.
 - **Lesson**: health and readiness probes must never touch a paid back end. A readiness probe that queried SQL every 10 seconds kept serverless SQL awake around the clock (about US$1.50 to US$19 a day) until `/ready` was changed to check only the process.
 
+## 5b. PII masking (T-07)
+`deployLanguage` (default true) creates an Azure AI Language resource (`languageSku` F0 = free, 5,000 text records a
+month; one free Language resource per subscription, deploy.sh stops with a message if another app already holds it).
+Keys are disabled; only the orchestrator and risk agent identities hold *Cognitive Services User* on it. `/health`
+shows `"pii_masking": "pseudonymise+azure-language"`. **First Language resource in a subscription:** Azure requires
+the Responsible AI notice to be accepted once in the portal (create any Language resource there, tick the notice,
+then delete it); otherwise the deployment fails with "cannot create TextAnalytics until you agree to Responsible AI terms".
+
 ## 5a. AI gateway (optional, Azure API Management Consumption)
 Set `"deployApim": {"value": true}` and `"apimPublisherEmail": {"value": "<your email>"}` in `params.dev.json`, then
 `./deploy.sh`. Consumption has no hourly charge and the first 1 million calls a month are free.

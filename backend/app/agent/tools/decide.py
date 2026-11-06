@@ -43,7 +43,7 @@ def record_decision(ctx: RunContext, args: DecisionInput) -> DecisionOutput:
     d = decide(ctx.findings, risk.get("rating"), [t for t in req if t != TOOL], ctx.tools_run, args.recommendation)
     extra_missing = [m for m in args.missing_items if m not in d.missing_items] if d.outcome.value == "request_more" else []
     ctx.run.model_recommendation = args.recommendation
-    ctx.run.model_rationale = args.rationale
+    ctx.run.model_rationale = ctx.from_model(args.rationale)  # T-07: the model wrote tokens; analysts read names
     return DecisionOutput(outcome=d.outcome.value, gate=d.gate, reason=d.reason, missing_items=d.missing_items + extra_missing,
                           triggering_codes=d.triggering_codes, model_recommendation=d.model_recommendation,
                           model_tightened=d.model_tightened, review_priority=d.review_priority,

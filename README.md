@@ -88,6 +88,7 @@ Azure services: Container Apps, Azure SQL (serverless, on the free offer), Blob 
 | **One identity per agent** | Orchestrator, extraction, screening, risk and decision agents each run under their own managed identity with only the Azure roles their job needs. Revoking one breaks only that agent, and the case routes to a human | `backend/app/identity.py`, `infra/main.bicep` |
 | **Policy enforcement point** | Every tool call is checked in code before it runs: deny-by-default caller allow-list, no unknown arguments, ids must belong to the case, bounded plain-text decision fields. Only human-initiated requests write evidence | `backend/app/agent/policy_point.py` |
 | **Accountable to a person** | Every run and tool event records the agent identity and the analyst it acted for. Secretless on-behalf-of (managed-identity federated credential) for analyst-scoped downstream data | `backend/app/obo.py` |
+| **Personal data never reaches the model** | Names, dates of birth, addresses, phone numbers and emails are replaced with consistent tokens (PERSON_1, DOB_1, ADDRESS_1) in everything the model receives; free text from documents is also scanned by Azure AI Language PII detection and withheld if that service is down. Deterministic checks and analysts use the real values; the model's rationale is turned back into names before an analyst reads it. A test runs every golden case and fails if any personal value reaches the model | `backend/app/agent/pii.py` |
 | **Permission-trimmed policy search** | Policy retrieval runs on Azure AI Search (hybrid keyword + vector, optional semantic re-ranking). Every policy declares who may read it, and every query is filtered to what the analyst the agent acts for may open: the agent never retrieves more than its human could. On a shared search service the app gets its own index and roles scoped to that index only. Retrieval quality and access leaks are scored on a golden set in CI and against the live index | `backend/app/rag/store.py`, `backend/eval/retrieval_eval.py` |
 | **Grounded risk factors** | Risk factors the model adds are accepted only if they cite a policy section it actually retrieved; others are rejected and logged | `backend/app/agent/tools/risk.py` |
 | **AI gateway** | Optional Azure API Management (Consumption tier) in front of Azure OpenAI. Agents call it with their own identity; the gateway admits only the two agents that need a model, calls the model with its own identity (the agents have no direct model access, so it cannot be bypassed) and records token usage per agent. Request bodies are never logged | `infra/apim-openai-policy.xml` |
@@ -109,7 +110,7 @@ The full threat register (T-01 to T-17, mapped to the OWASP Top 10 for LLM appli
 | Cost per case (gpt-4.1-mini) | about US$0.0035 |
 | Latency per case | about 7 s |
 | Retrieval (golden set, local) | hit@5 0.94 · MRR 0.82 · 0 access leaks |
-| Automated tests | 106 |
+| Automated tests | 124 |
 
 ## Lessons from deploying it
 
@@ -126,7 +127,7 @@ Real infrastructure exposed problems that local tests never did. Each one is doc
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest -q                     # 106 tests
+python -m pytest -q                     # 124 tests
 python -m eval.retrieval_eval           # retrieval quality + access trimming
 python -m eval.run_eval                 # 13/13 golden cases
 python seed.py                          # load and run the golden cases
@@ -163,4 +164,4 @@ docs/       architecture, threat model, deployment notes
 
 ## Status
 
-Portfolio project under active development. Next: pseudonymising names and addresses before model calls (T-07), a red-team suite as a CI gate, and extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.
+Portfolio project under active development. Next: a red-team suite as a CI gate, and extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.

@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # sees it. Unset = deterministic pattern scan only. Set but unreachable = fail closed (no auto-approval).
     content_safety_endpoint: Optional[str] = None
     content_safety_api_version: str = "2024-09-01"
+    # T-07: Azure AI Language PII detection for free text sent to the model (keyless). Unset = deterministic
+    # pseudonymisation only (known names, dates of birth, addresses, PII-named fields).
+    pii_endpoint: Optional[str] = None
+    pii_api_version: str = "2024-11-01"
     prompt_version: str = "kyc-orchestrator/v3"  # v3: document text delimited and declared data-only (T-01)
 
     # LLM provider: auto (azure if endpoint set, else ollama if reachable, else mock) | azure | ollama | mock

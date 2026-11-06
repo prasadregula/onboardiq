@@ -47,6 +47,10 @@ param sqlAadAdminObjectId string = ''
 
 @description('Deploy Azure AI Content Safety for Prompt Shields document-attack screening (T-01). Keyless; F0 is free.')
 param deployContentSafety bool = true
+@description('T-07: Azure AI Language PII detection for free text sent to the model (keyless; orchestrator and risk agents only)')
+param deployLanguage bool = true
+@description('Language tier. F0 = free (5,000 text records a month, one free Language resource per subscription); S if F0 is taken.')
+param languageSku string = 'F0'
 @description('Content Safety tier. F0 = free (limited calls/month, one free resource per subscription); use S0 if F0 is taken.')
 param contentSafetySku string = 'F0'
 
@@ -173,6 +177,16 @@ resource contentSafety 'Microsoft.CognitiveServices/accounts@2023-05-01' = if (d
   properties: { customSubDomainName: 'cs-${name}-${take(suffix, 6)}', publicNetworkAccess: 'Enabled', disableLocalAuth: true }
 }
 
+// T-07: masks personal data hidden in free text before the model sees it. Local auth (keys) disabled: Entra only.
+resource language 'Microsoft.CognitiveServices/accounts@2023-05-01' = if (deployLanguage) {
+  name: 'lang-${name}'
+  location: location
+  tags: tags
+  kind: 'TextAnalytics'
+  sku: { name: languageSku }
+  properties: { customSubDomainName: 'lang-${name}-${take(suffix, 6)}', publicNetworkAccess: 'Enabled', disableLocalAuth: true }
+}
+
 resource search 'Microsoft.Search/searchServices@2023-11-01' = if (deploySearch) {
   name: 'srch-${name}'
   location: location
@@ -240,6 +254,7 @@ var commonEnv = [
   { name: 'ONBOARDIQ_LLM_PROVIDER', value: 'azure' }
   { name: 'ONBOARDIQ_AZURE_OPENAI_ENDPOINT', value: deployApim ? apim!.properties.gatewayUrl : openAiEndpoint }
   { name: 'ONBOARDIQ_LLM_GATEWAY', value: deployApim ? 'apim' : '' }
+  { name: 'ONBOARDIQ_PII_ENDPOINT', value: deployLanguage ? language!.properties.endpoint : '' }
   { name: 'ONBOARDIQ_AZURE_OPENAI_CHAT_DEPLOYMENT', value: chatDeployment }
   { name: 'ONBOARDIQ_AZURE_OPENAI_EMBEDDING_DEPLOYMENT', value: embeddingDeployment }
   { name: 'ONBOARDIQ_EXTRACTION_PROVIDER', value: 'azure' }
@@ -368,6 +383,17 @@ resource raCsExtraction 'Microsoft.Authorization/roleAssignments@2022-04-01' = i
   name: guid(resourceGroup().id, 'cs', agentId[1].id, roles.cogServicesUser)
   scope: contentSafety
   properties: { principalId: agentId[1].properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.cogServicesUser) }
+}
+// Language (PII detection): only the two agents that send text to the model, so they can minimise it first
+resource raLangOrchestrator 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployLanguage) {
+  name: guid(resourceGroup().id, 'lang', agentId[0].id, roles.cogServicesUser)
+  scope: language
+  properties: { principalId: agentId[0].properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.cogServicesUser) }
+}
+resource raLangRisk 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployLanguage) {
+  name: guid(resourceGroup().id, 'lang', agentId[3].id, roles.cogServicesUser)
+  scope: language
+  properties: { principalId: agentId[3].properties.principalId, principalType: 'ServicePrincipal', roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.cogServicesUser) }
 }
 // screening and decision agents: deliberately NO Azure role assignments
 resource raBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
