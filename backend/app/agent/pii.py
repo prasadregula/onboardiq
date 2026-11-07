@@ -163,6 +163,8 @@ class Pseudonymizer:
         kind = KEY_KIND.get(key.lower())
         if kind == "FILE":
             return "[file name not shown]"
+        if kind and isinstance(value, str) and value.startswith("[withheld"):
+            return value  # a control's marker, not personal data: keep it visible to the model
         if kind and isinstance(value, (str, int)) and str(value).strip():
             self.stats["tokens_replaced"] += 1
             return self.token(kind, value)
