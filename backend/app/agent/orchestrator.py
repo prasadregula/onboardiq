@@ -156,6 +156,7 @@ def _run_llm(ctx: RunContext) -> dict:
     decision: dict | None = None
     for _step in range(s.max_tool_calls):
         _guard(ctx)
+        ctx.log_model_request(messages, "orchestration")
         res = llm.chat(messages, tools=tools, tool_choice="auto", temperature=0.0)  # orchestrator identity; usage booked
         ctx.run.model = res.model or getattr(llm, 'chat_deployment', llm.name)
         audit.record(ctx.session, ctx.case.id, "agent", "llm_message",
@@ -166,8 +167,10 @@ def _run_llm(ctx: RunContext) -> dict:
             continue
         for tc in res.tool_calls:
             out, err = _call(ctx, tc["name"], tc["arguments"])
-            messages.append({"role": "tool", "tool_call_id": tc["id"],
-                             "content": tool_message(tc["name"], out, err, view=ctx.model_view)})
+            content = tool_message(tc["name"], out, err, view=ctx.model_view)
+            messages.append({"role": "tool", "tool_call_id": tc["id"], "content": content})
+            audit.record(ctx.session, ctx.case.id, "agent", "llm_message",  # exactly what the model was shown
+                         {"role": "tool", "tool": tc["name"], "content": content}, ctx.run.id)
             if tc["name"] == "record_decision" and out:
                 decision = out
         if decision:

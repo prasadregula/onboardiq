@@ -88,6 +88,7 @@ Azure services: Container Apps, Azure SQL (serverless, on the free offer), Blob 
 | **One identity per agent** | Orchestrator, extraction, screening, risk and decision agents each run under their own managed identity with only the Azure roles their job needs. Revoking one breaks only that agent, and the case routes to a human | `backend/app/identity.py`, `infra/main.bicep` |
 | **Policy enforcement point** | Every tool call is checked in code before it runs: deny-by-default caller allow-list, no unknown arguments, ids must belong to the case, bounded plain-text decision fields. Only human-initiated requests write evidence | `backend/app/agent/policy_point.py` |
 | **Accountable to a person** | Every run and tool event records the agent identity and the analyst it acted for. Secretless on-behalf-of (managed-identity federated credential) for analyst-scoped downstream data | `backend/app/obo.py` |
+| **Evidence pack** | One click (Auditor, BSA officer, Admin) exports a decision as a record an examiner can read: outcome and the gate that decided it, model and prompt versions, controls in effect, every agent step with its identity and the person it acted for, refusals, the masked transcript of exactly what the model was shown with a SHA-256 of each request recorded before it was sent, the human review, and the verified hash chain. The export itself is audited | `backend/app/evidence.py` |
 | **Red-team gate in CI** | 25 attacks across six OWASP LLM risks (indirect injection, excessive agency, exfiltration, overreliance, unbounded consumption, PII disclosure, retrieval access) run on every push. An attacker model always pushes for approval; each attack states what must happen. Detection misses are reported honestly; containment is the gate, and the suite is itself tested by switching controls off | `backend/eval/redteam.py`, `backend/eval/redteam_cases.json` |
 | **Personal data never reaches the model** | Names, dates of birth, addresses, phone numbers and emails are replaced with consistent tokens (PERSON_1, DOB_1, ADDRESS_1) in everything the model receives; free text from documents is also scanned by Azure AI Language PII detection and withheld if that service is down. Deterministic checks and analysts use the real values; the model's rationale is turned back into names before an analyst reads it. A test runs every golden case and fails if any personal value reaches the model | `backend/app/agent/pii.py` |
 | **Permission-trimmed policy search** | Policy retrieval runs on Azure AI Search (hybrid keyword + vector, optional semantic re-ranking). Every policy declares who may read it, and every query is filtered to what the analyst the agent acts for may open: the agent never retrieves more than its human could. On a shared search service the app gets its own index and roles scoped to that index only. Retrieval quality and access leaks are scored on a golden set in CI and against the live index | `backend/app/rag/store.py`, `backend/eval/retrieval_eval.py` |
@@ -112,7 +113,7 @@ The full threat register (T-01 to T-17, mapped to the OWASP Top 10 for LLM appli
 | Latency per case | about 7 s |
 | Retrieval (golden set, local) | hit@5 0.94 · MRR 0.82 · 0 access leaks |
 | Red-team attacks contained | 25/25 (injection detected 8/10; both misses contained) |
-| Automated tests | 127 |
+| Automated tests | 131 |
 
 ## Lessons from deploying it
 
@@ -129,7 +130,7 @@ Real infrastructure exposed problems that local tests never did. Each one is doc
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest -q                     # 127 tests
+python -m pytest -q                     # 131 tests
 python -m eval.redteam                  # 25 attacks, all must be contained
 python -m eval.retrieval_eval           # retrieval quality + access trimming
 python -m eval.run_eval                 # 13/13 golden cases
@@ -167,4 +168,4 @@ docs/       architecture, threat model, deployment notes
 
 ## Status
 
-Portfolio project under active development. Next: an auditor evidence pack and extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.
+Portfolio project under active development. Next: extraction of the policy and audit layer into a provider-agnostic agent guardrail gateway.

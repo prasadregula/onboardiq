@@ -35,6 +35,18 @@ export default function CasePage() {
   const canAct = hasRole(me, 'KycAnalyst', 'BsaOfficer', 'Admin')
   const upload = async (docType: string, file: File) => { setBusy(true); try { await api.uploadDocument(id, docType, file); await load() } catch (e: any) { alert(e.message) } finally { setBusy(false) } }
 
+  const canExport = hasRole(me, 'Auditor', 'BsaOfficer', 'Admin')
+  const openEvidence = async () => {
+    const w = window.open('', '_blank')  // opened inside the click so pop-up blockers allow it
+    try {
+      const html = await api.evidenceHtml(id)
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+      if (w) w.location.href = url
+      else { const a = document.createElement('a'); a.href = url; a.download = `evidence-${d.case.external_ref ?? id}.html`; a.click() }
+      load()  // the export is now an audit event
+    } catch (e: any) { w?.close(); alert(e.message) }
+  }
+
   const tabs: Array<[Tab, string]> = [['findings', `Findings (${findings.length})`], ['screening', 'Screening'], ['documents', `Documents (${d.documents.length})`],
     ['ownership', 'Ownership'], ['risk', 'Risk & policy'], ['timeline', 'Agent timeline'], ['audit', `Audit (${audit.length})`]]
 
@@ -71,7 +83,9 @@ export default function CasePage() {
         {tabs.map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === k ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{label}</button>
         ))}
-        {verify && <span className={`ml-auto self-center chip ${verify.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-100 text-rose-800'}`}>
+        {canExport && <button className="ml-auto self-center btn-ghost !py-0.5 text-sm" onClick={openEvidence}
+          title="Auditor-readable record of this decision: what the model saw, who did what, the audit chain (export is logged)">Evidence pack</button>}
+        {verify && <span className={`${canExport ? 'ml-2' : 'ml-auto'} self-center chip ${verify.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-100 text-rose-800'}`}>
           {verify.ok ? `audit chain verified · ${verify.events} events` : `AUDIT CHAIN BROKEN at #${verify.broken_at_seq}`}</span>}
       </div>
 

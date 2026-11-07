@@ -31,6 +31,18 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   return r.json()
 }
 
+/** Evidence pack (Auditor, BSA officer, Admin): the HTML record of one decision. Fetched with the user's token. */
+async function evidenceHtml(caseId: string): Promise<string> {
+  const auth = await authHeaders()
+  const r = await fetch(`${BASE}/cases/${caseId}/evidence`, { headers: auth as Record<string, string> })
+  if (!r.ok) {
+    let detail = r.statusText
+    try { detail = (await r.json()).detail ?? detail } catch { /* ignore */ }
+    throw new Error(`${r.status}: ${detail}`)
+  }
+  return r.text()
+}
+
 export type QueueItem = {
   task_id: string; case_id: string; applicant_name: string | null; applicant_type: string; priority: string
   reason_codes: string[]; status: string; assigned_to: string | null; outcome: string | null; risk_rating: string | null
@@ -90,6 +102,7 @@ export const api = {
   pauseAgents: (reason: string) => req<AgentControl>('/admin/agents/pause', { method: 'POST', body: JSON.stringify({ reason }) }),
   resumeAgents: (reason?: string) => req<AgentControl>('/admin/agents/resume', { method: 'POST', body: JSON.stringify({ reason: reason ?? null }) }),
   demoReset: () => req<any>('/admin/demo/reset', { method: 'POST' }),
+  evidenceHtml,
   ragEval: () => req<{ summary: { store: string; k: number; queries: number; hit_rate: number; recall: number; mrr: number; access_leaks: number; passed: boolean } }>('/admin/rag/eval'),
   act: (taskId: string, body: Record<string, unknown>) => req<any>(`/review/tasks/${taskId}/action`, { method: 'POST', body: JSON.stringify(body) }),
 }

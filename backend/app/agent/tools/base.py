@@ -41,6 +41,20 @@ class RunContext:
             self.pii = Pseudonymizer.for_case(self)
         return self.pii.minimise(obj)
 
+    def log_model_request(self, messages: list[dict], purpose: str) -> str:
+        """Evidence (w6): fingerprint of the EXACT request sent to the model, recorded in the audit chain before the
+        call. With the llm_message events (the masked transcript) an auditor can see what the model was given."""
+        import hashlib
+        import json
+
+        from ... import audit
+        raw = json.dumps(messages, sort_keys=True, separators=(",", ":"), default=str)
+        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        audit.record(self.session, self.case.id, "agent", "model_request",
+                     {"purpose": purpose, "messages": len(messages), "bytes": len(raw), "sha256": digest,
+                      "prompt_version": self.settings.prompt_version}, self.run.id)
+        return digest
+
     def from_model(self, text: str | None) -> str | None:
         """Text the model wrote, with its tokens turned back into real values for the analyst."""
         return self.pii.reidentify(text) if self.pii is not None else text

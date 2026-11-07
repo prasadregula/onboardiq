@@ -197,6 +197,10 @@ def rate_risk(ctx: RunContext, _: RiskInput) -> RiskOutput:
                                         f"these factors: {[x.model_dump() for x in factors]}. You may add factors the scorer "
                                         f"missed; you may not remove any."},
         ]
+        from ... import audit
+        audit.record(ctx.session, ctx.case.id, "agent", "llm_message",
+                     {"role": "user", "purpose": "risk_grounding", "content": msgs[1]["content"]}, ctx.run.id)
+        ctx.log_model_request(msgs, "risk_grounding")
         res = llm.chat(msgs, json_mode=True, temperature=0.0)  # usage booked by the run's usage_scope()
         model_used = res.model or getattr(llm, 'chat_deployment', llm.name)
         try:

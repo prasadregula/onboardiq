@@ -7,7 +7,16 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlmodel import Session, select
 
 from .. import audit, control, services
-from ..auth import Principal, current_analyst, require_case_writer, require_reader
+from ..auth import (
+    ROLE_ADMIN,
+    ROLE_AUDITOR,
+    ROLE_BSA,
+    Principal,
+    current_analyst,
+    require_case_writer,
+    require_reader,
+    require_roles,
+)
 from ..config import get_settings
 from ..db import get_session, session_scope
 from ..identity import principal_ref
@@ -184,6 +193,33 @@ def get_audit(case_id: str, session: Session = Depends(get_session)) -> list[dic
 @router.get("/{case_id}/audit/verify", dependencies=[Depends(require_reader)])
 def verify_audit(case_id: str, session: Session = Depends(get_session)) -> dict:
     return audit.verify_chain(session, case_id)
+
+
+# Evidence pack (w6): the auditor's view of one decision. Contains personal data, so only Auditor, BSA officer and
+# Admin may export it, and every export is written to the case's audit chain before the pack is built.
+require_evidence_reader = require_roles(ROLE_AUDITOR, ROLE_BSA, ROLE_ADMIN)
+
+
+@router.get("/{case_id}/evidence")
+def evidence_pack(case_id: str, run_id: str | None = None, format: str = "html",
+                  p: Principal = Depends(require_evidence_reader), session: Session = Depends(get_session)) -> Response:
+    from .. import evidence
+    _get_case(session, case_id)
+    if format not in ("html", "json"):
+        raise HTTPException(422, "format must be html or json")
+    audit.record(session, case_id, f"user:{p.subject}", "evidence_exported",
+                 {"format": format, "run_id": run_id, "by": principal_ref(p)})
+    session.commit()
+    try:
+        pack = evidence.build(session, case_id, run_id, generated_by=p.name or p.subject)
+    except KeyError:
+        raise HTTPException(404, "run not found") from None
+    if format == "json":
+        import json
+        return Response(json.dumps(pack, default=str, indent=1), media_type="application/json")
+    name = f"evidence-{pack['case']['external_ref'] or case_id}.html"
+    return Response(evidence.render_html(pack), media_type="text/html; charset=utf-8",
+                    headers={"Content-Disposition": f'inline; filename="{name}"', "Cache-Control": "no-store"})
 
 
 @router.post("/{case_id}/note")
